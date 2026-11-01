@@ -732,9 +732,12 @@ export const readSubjectMidTest = async (
     const matchesCurrentSession = (m: any) =>
       !!presentSession && normalize(m?.session || "") === presentSession;
 
-    const midTest: any = allMidTests.find(
-      (m: any) => matchesCurrentTerm(m) && matchesCurrentSession(m)
-    );
+    const isCurrentPeriod = (m: any) =>
+      matchesCurrentTerm(m) && matchesCurrentSession(m);
+    const currentPeriodMidTests = allMidTests.filter(isCurrentPeriod);
+    const midTest: any =
+      currentPeriodMidTests.find((m: any) => m?.startMidTest === true) ||
+      currentPeriodMidTests[0];
 
     return res.status(201).json({
       message: "subject midTest read successfully",

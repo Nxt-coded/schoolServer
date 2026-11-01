@@ -603,6 +603,34 @@ export const createMidTestPerformance = async (
       return res.status(404).json({ message: "Subject not found", status: 404 });
     }
 
+    const existingPerformance = await performanceModel.findOne({
+      student: studentID,
+      quizID,
+      subjectID,
+    });
+    if (existingPerformance) {
+      const performanceID = new Types.ObjectId(existingPerformance._id);
+      await Promise.all([
+        midTestModel.updateOne(
+          { _id: quizID },
+          { $addToSet: { performance: performanceID } }
+        ),
+        studentModel.updateOne(
+          { _id: studentID },
+          { $addToSet: { performance: performanceID } }
+        ),
+        subjectModel.updateOne(
+          { _id: subjectID },
+          { $addToSet: { performance: performanceID } }
+        ),
+      ]);
+      return res.status(201).json({
+        message: "Mid test performance already recorded",
+        data: existingPerformance,
+        status: 201,
+      });
+    }
+
     const existingAttempts = await performanceModel.countDocuments({
       student: studentID,
       quizID,

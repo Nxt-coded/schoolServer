@@ -681,7 +681,10 @@ const readSubjectMidTest = async (req, res) => {
         });
         const matchesCurrentTerm = (m) => !!presentTerm && normalize(m?.term || "") === presentTerm;
         const matchesCurrentSession = (m) => !!presentSession && normalize(m?.session || "") === presentSession;
-        const midTest = allMidTests.find((m) => matchesCurrentTerm(m) && matchesCurrentSession(m));
+        const isCurrentPeriod = (m) => matchesCurrentTerm(m) && matchesCurrentSession(m);
+        const currentPeriodMidTests = allMidTests.filter(isCurrentPeriod);
+        const midTest = currentPeriodMidTests.find((m) => m?.startMidTest === true) ||
+            currentPeriodMidTests[0];
         return res.status(201).json({
             message: "subject midTest read successfully",
             midTest,

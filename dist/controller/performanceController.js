@@ -483,6 +483,24 @@ const createMidTestPerformance = async (req, res) => {
         if (!subject) {
             return res.status(404).json({ message: "Subject not found", status: 404 });
         }
+        const existingPerformance = await performanceModel_1.default.findOne({
+            student: studentID,
+            quizID,
+            subjectID,
+        });
+        if (existingPerformance) {
+            const performanceID = new mongoose_1.Types.ObjectId(existingPerformance._id);
+            await Promise.all([
+                midTestModel_1.default.updateOne({ _id: quizID }, { $addToSet: { performance: performanceID } }),
+                studentModel_1.default.updateOne({ _id: studentID }, { $addToSet: { performance: performanceID } }),
+                subjectModel_1.default.updateOne({ _id: subjectID }, { $addToSet: { performance: performanceID } }),
+            ]);
+            return res.status(201).json({
+                message: "Mid test performance already recorded",
+                data: existingPerformance,
+                status: 201,
+            });
+        }
         const existingAttempts = await performanceModel_1.default.countDocuments({
             student: studentID,
             quizID,
