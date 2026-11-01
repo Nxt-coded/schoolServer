@@ -17,6 +17,7 @@ router
   .post(fileUpload, createBulkClassSubjects);
 
 router.route("/view-subjects/:schoolID").get(viewSchoolSubjects);
+router.route("/view-school-subject/:schoolID").get(viewSchoolSubjects);
 router.route("/view-subjects-info/:subjectID").get(viewSubjectDetail);
 
 router

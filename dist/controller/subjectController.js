@@ -293,16 +293,6 @@ const updateSchoolSubjectTeacher = async (req, res) => {
                 status: 404,
             });
         }
-        const isSchoolSubject = (school.subjects || []).some((schoolSubject) => getReferenceID(schoolSubject) === subjectID);
-        const subject = isSchoolSubject
-            ? await subjectModel_1.default.findById(subjectID)
-            : null;
-        if (!subject) {
-            return res.status(404).json({
-                message: "Subject not found in this school",
-                status: 404,
-            });
-        }
         const schoolStaffIDs = (school.staff || []).map(getReferenceID).filter(Boolean);
         const schoolClassroomIDs = (school.classRooms || [])
             .map(getReferenceID)
@@ -316,6 +306,52 @@ const updateSchoolSubjectTeacher = async (req, res) => {
                 { _id: { $in: schoolClassroomIDs } },
             ],
         };
+        const subject = await subjectModel_1.default.findById(subjectID);
+        if (!subject) {
+            return res.status(404).json({
+                message: "Subject not found in this school",
+                status: 404,
+            });
+        }
+        const classID = subject.subjectClassID ||
+            subject.subjectClassIDs ||
+            subject.classID ||
+            getReferenceID(isRecord(subject.classDetails) ? subject.classDetails._id : undefined);
+        const classroom = (classID ? await classroomModel_1.default.findById(classID) : null) ||
+            (subject.designated
+                ? await classroomModel_1.default.findOne({
+                    className: subject.designated,
+                    ...schoolClassroomFilter,
+                })
+                : null);
+        const classroomID = getReferenceID(classroom?._id);
+        const classroomBelongsToSchool = Boolean(classroom &&
+            (schoolClassroomIDs.includes(classroomID) ||
+                String(classroom.schoolIDs) === schoolID));
+        if (!classroom || !classroomBelongsToSchool) {
+            return res.status(404).json({
+                message: "Unable to find the subject's classroom",
+                status: 404,
+            });
+        }
+        const isSchoolSubject = (school.subjects || []).some((schoolSubject) => getReferenceID(schoolSubject) === subjectID);
+        const subjectClassIDs = [
+            subject.subjectClassID,
+            subject.subjectClassIDs,
+            subject.classID,
+            getReferenceID(isRecord(subject.classDetails) ? subject.classDetails._id : undefined),
+        ]
+            .map(getReferenceID)
+            .filter(Boolean);
+        const isClassSubject = classroomBelongsToSchool &&
+            (subjectClassIDs.includes(classroomID) ||
+                (classroom.classSubjects || []).some((classSubject) => getReferenceID(classSubject) === subjectID));
+        if (!isSchoolSubject && !isClassSubject) {
+            return res.status(404).json({
+                message: "Subject not found in this school",
+                status: 404,
+            });
+        }
         const nextTeacher = subjectTeacherID
             ? await staffModel_1.default.findOne({ _id: subjectTeacherID, ...schoolStaffFilter })
             : subjectTeacherName
@@ -327,25 +363,6 @@ const updateSchoolSubjectTeacher = async (req, res) => {
         if (!nextTeacher) {
             return res.status(404).json({
                 message: "Unable to find school teacher",
-                status: 404,
-            });
-        }
-        const classID = subject.subjectClassID ||
-            subject.subjectClassIDs ||
-            subject.classID ||
-            getReferenceID(isRecord(subject.classDetails) ? subject.classDetails._id : undefined);
-        const classroom = (classID
-            ? await classroomModel_1.default.findOne({ _id: classID, ...schoolClassroomFilter })
-            : null) ||
-            (subject.designated
-                ? await classroomModel_1.default.findOne({
-                    className: subject.designated,
-                    ...schoolClassroomFilter,
-                })
-                : null);
-        if (!classroom) {
-            return res.status(404).json({
-                message: "Unable to find the subject's classroom",
                 status: 404,
             });
         }
@@ -379,7 +396,13 @@ const updateSchoolSubjectTeacher = async (req, res) => {
             designated: classroom.className,
         }, { new: true });
         nextTeacher.subjectAssigned = nextAssignments;
-        await nextTeacher.save();
+        if (!isSchoolSubject) {
+            school.subjects.push(subject._id);
+        }
+        await Promise.all([
+            nextTeacher.save(),
+            !isSchoolSubject ? school.save() : Promise.resolve(),
+        ]);
         return res.status(201).json({
             message: "Subject teacher assigned successfully",
             data: updatedSubject,
@@ -398,7 +421,7 @@ exports.updateSchoolSubjectTeacher = updateSchoolSubjectTeacher;
 const viewSchoolSubjects = async (req, res) => {
     try {
         const { schoolID } = req.params;
-        const schoolSubject = await schoolModel_1.default.findById(schoolID).populate({
+        const school = await schoolModel_1.default.findById(schoolID).populate({
             path: "subjects",
             options: {
                 sort: {
@@ -406,10 +429,61 @@ const viewSchoolSubjects = async (req, res) => {
                 },
             },
         });
+        if (!school) {
+            return res.status(404).json({
+                message: "School not found",
+                status: 404,
+            });
+        }
+        const schoolClassroomIDs = (school.classRooms || [])
+            .map(getReferenceID)
+            .filter(Boolean);
+        const classrooms = await classroomModel_1.default.find({
+            $or: [
+                { schoolIDs: schoolID },
+                { _id: { $in: schoolClassroomIDs } },
+            ],
+        })
+            .select("_id className classSubjects");
+        const classroomIDs = classrooms.map(getReferenceID).filter(Boolean);
+        const classroomSubjectIDs = classrooms
+            .flatMap((classroom) => (classroom.classSubjects || []).map(getReferenceID))
+            .filter(Boolean);
+        const classroomSubjects = await subjectModel_1.default.find({
+            $or: [
+                { _id: { $in: classroomSubjectIDs } },
+                { subjectClassID: { $in: classroomIDs } },
+                { subjectClassIDs: { $in: classroomIDs } },
+                { classID: { $in: classroomIDs } },
+            ],
+        });
+        const classroomNames = new Map(classrooms.map((classroom) => [getReferenceID(classroom), classroom.className]));
+        const subjectsByID = new Map();
+        const addSubject = (subject) => {
+            const subjectID = getReferenceID(subject?._id);
+            if (!subjectID)
+                return;
+            const subjectClassID = [
+                subject.subjectClassID,
+                subject.subjectClassIDs,
+                subject.classID,
+                getReferenceID(isRecord(subject.classDetails) ? subject.classDetails._id : undefined),
+            ]
+                .map(getReferenceID)
+                .find((classID) => classroomNames.has(classID));
+            const subjectData = typeof subject.toObject === "function" ? subject.toObject() : subject;
+            subjectsByID.set(subjectID, subjectClassID
+                ? { ...subjectData, designated: classroomNames.get(subjectClassID) }
+                : subjectData);
+        };
+        (school.subjects || []).forEach(addSubject);
+        classroomSubjects.forEach(addSubject);
+        const subjects = [...subjectsByID.values()].sort((left, right) => new Date(right.createdAt || 0).getTime() -
+            new Date(left.createdAt || 0).getTime());
         return res.status(200).json({
             message: "School Subject found",
             status: 200,
-            data: schoolSubject,
+            data: { ...school.toObject(), subjects },
         });
     }
     catch (error) {

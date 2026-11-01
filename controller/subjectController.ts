@@ -354,20 +354,6 @@ export const updateSchoolSubjectTeacher = async (
       });
     }
 
-    const isSchoolSubject = (school.subjects || []).some(
-      (schoolSubject) => getReferenceID(schoolSubject) === subjectID
-    );
-    const subject = isSchoolSubject
-      ? await subjectModel.findById(subjectID)
-      : null;
-
-    if (!subject) {
-      return res.status(404).json({
-        message: "Subject not found in this school",
-        status: 404,
-      });
-    }
-
     const schoolStaffIDs = (school.staff || []).map(getReferenceID).filter(Boolean);
     const schoolClassroomIDs = (school.classRooms || [])
       .map(getReferenceID)
@@ -381,18 +367,10 @@ export const updateSchoolSubjectTeacher = async (
         { _id: { $in: schoolClassroomIDs } },
       ],
     };
-    const nextTeacher = subjectTeacherID
-      ? await staffModel.findOne({ _id: subjectTeacherID, ...schoolStaffFilter })
-      : subjectTeacherName
-        ? await staffModel.findOne({
-            staffName: subjectTeacherName,
-            ...schoolStaffFilter,
-          })
-        : null;
-
-    if (!nextTeacher) {
+    const subject = await subjectModel.findById(subjectID);
+    if (!subject) {
       return res.status(404).json({
-        message: "Unable to find school teacher",
+        message: "Subject not found in this school",
         status: 404,
       });
     }
@@ -405,19 +383,66 @@ export const updateSchoolSubjectTeacher = async (
         isRecord(subject.classDetails) ? subject.classDetails._id : undefined
       );
     const classroom =
-      (classID
-        ? await classroomModel.findOne({ _id: classID, ...schoolClassroomFilter })
-        : null) ||
+      (classID ? await classroomModel.findById(classID) : null) ||
       (subject.designated
         ? await classroomModel.findOne({
             className: subject.designated,
             ...schoolClassroomFilter,
           })
         : null);
+    const classroomID = getReferenceID(classroom?._id);
+    const classroomBelongsToSchool = Boolean(
+      classroom &&
+        (schoolClassroomIDs.includes(classroomID) ||
+          String(classroom.schoolIDs) === schoolID)
+    );
 
-    if (!classroom) {
+    if (!classroom || !classroomBelongsToSchool) {
       return res.status(404).json({
         message: "Unable to find the subject's classroom",
+        status: 404,
+      });
+    }
+
+    const isSchoolSubject = (school.subjects || []).some(
+      (schoolSubject) => getReferenceID(schoolSubject) === subjectID
+    );
+    const subjectClassIDs = [
+      subject.subjectClassID,
+      subject.subjectClassIDs,
+      subject.classID,
+      getReferenceID(
+        isRecord(subject.classDetails) ? subject.classDetails._id : undefined
+      ),
+    ]
+      .map(getReferenceID)
+      .filter(Boolean);
+    const isClassSubject =
+      classroomBelongsToSchool &&
+      (subjectClassIDs.includes(classroomID) ||
+        (classroom.classSubjects || []).some(
+          (classSubject) => getReferenceID(classSubject) === subjectID
+        ));
+
+    if (!isSchoolSubject && !isClassSubject) {
+      return res.status(404).json({
+        message: "Subject not found in this school",
+        status: 404,
+      });
+    }
+
+    const nextTeacher = subjectTeacherID
+      ? await staffModel.findOne({ _id: subjectTeacherID, ...schoolStaffFilter })
+      : subjectTeacherName
+        ? await staffModel.findOne({
+            staffName: subjectTeacherName,
+            ...schoolStaffFilter,
+          })
+        : null;
+
+    if (!nextTeacher) {
+      return res.status(404).json({
+        message: "Unable to find school teacher",
         status: 404,
       });
     }
@@ -464,7 +489,13 @@ export const updateSchoolSubjectTeacher = async (
     );
 
     nextTeacher.subjectAssigned = nextAssignments;
-    await nextTeacher.save();
+    if (!isSchoolSubject) {
+      school.subjects.push(subject._id);
+    }
+    await Promise.all([
+      nextTeacher.save(),
+      !isSchoolSubject ? school.save() : Promise.resolve(),
+    ]);
 
     return res.status(201).json({
       message: "Subject teacher assigned successfully",
@@ -487,7 +518,7 @@ export const viewSchoolSubjects = async (
   try {
     const { schoolID } = req.params;
 
-    const schoolSubject = await schoolModel.findById(schoolID).populate({
+    const school = await schoolModel.findById(schoolID).populate({
       path: "subjects",
       options: {
         sort: {
@@ -496,10 +527,75 @@ export const viewSchoolSubjects = async (
       },
     });
 
+    if (!school) {
+      return res.status(404).json({
+        message: "School not found",
+        status: 404,
+      });
+    }
+
+    const schoolClassroomIDs = (school.classRooms || [])
+      .map(getReferenceID)
+      .filter(Boolean);
+    const classrooms = await classroomModel.find({
+        $or: [
+          { schoolIDs: schoolID },
+          { _id: { $in: schoolClassroomIDs } },
+        ],
+      })
+      .select("_id className classSubjects");
+    const classroomIDs = classrooms.map(getReferenceID).filter(Boolean);
+    const classroomSubjectIDs = classrooms
+      .flatMap((classroom) => (classroom.classSubjects || []).map(getReferenceID))
+      .filter(Boolean);
+    const classroomSubjects = await subjectModel.find({
+      $or: [
+        { _id: { $in: classroomSubjectIDs } },
+        { subjectClassID: { $in: classroomIDs } },
+        { subjectClassIDs: { $in: classroomIDs } },
+        { classID: { $in: classroomIDs } },
+      ],
+    });
+    const classroomNames = new Map(
+      classrooms.map((classroom) => [getReferenceID(classroom), classroom.className])
+    );
+    const subjectsByID = new Map<string, any>();
+    const addSubject = (subject: any) => {
+      const subjectID = getReferenceID(subject?._id);
+      if (!subjectID) return;
+
+      const subjectClassID = [
+        subject.subjectClassID,
+        subject.subjectClassIDs,
+        subject.classID,
+        getReferenceID(
+          isRecord(subject.classDetails) ? subject.classDetails._id : undefined
+        ),
+      ]
+        .map(getReferenceID)
+        .find((classID) => classroomNames.has(classID));
+      const subjectData =
+        typeof subject.toObject === "function" ? subject.toObject() : subject;
+      subjectsByID.set(
+        subjectID,
+        subjectClassID
+          ? { ...subjectData, designated: classroomNames.get(subjectClassID) }
+          : subjectData
+      );
+    };
+
+    (school.subjects || []).forEach(addSubject);
+    classroomSubjects.forEach(addSubject);
+    const subjects = [...subjectsByID.values()].sort(
+      (left, right) =>
+        new Date(right.createdAt || 0).getTime() -
+        new Date(left.createdAt || 0).getTime()
+    );
+
     return res.status(200).json({
       message: "School Subject found",
       status: 200,
-      data: schoolSubject,
+      data: { ...school.toObject(), subjects },
     });
   } catch (error) {
     return res.status(404).json({

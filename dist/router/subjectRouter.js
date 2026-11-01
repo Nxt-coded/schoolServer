@@ -9,6 +9,7 @@ router
     .route("/create-bulk-subject/:schoolID")
     .post(multer_1.fileUpload, subjectController_1.createBulkClassSubjects);
 router.route("/view-subjects/:schoolID").get(subjectController_1.viewSchoolSubjects);
+router.route("/view-school-subject/:schoolID").get(subjectController_1.viewSchoolSubjects);
 router.route("/view-subjects-info/:subjectID").get(subjectController_1.viewSubjectDetail);
 router
     .route("/update-subject-teacher/:schoolID/:subjectID")
