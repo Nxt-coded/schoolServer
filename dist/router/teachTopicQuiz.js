@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const createTeachTopicQuiz_1 = require("../controller/createTeachTopicQuiz");
+const router = (0, express_1.Router)();
+router.post("/create-teach-subject-topic-quiz/:topicID", createTeachTopicQuiz_1.createTeachSubjectTopicQuiz);
+router.post("/create-bulk-teach-subject-topic-quiz/:topicID", createTeachTopicQuiz_1.createBulkTeachSubjectTopicQuiz);
+// router.get("/teach-subject-topic/", getAllTeachSubjectTopicQuiz);
+router.get("/get-teach-subject-topic-quiz/:teachSubjectTopicID", createTeachTopicQuiz_1.getOneTeachSubjectTopicQuiz);
+router.patch("/update-teach-subject-topic-quiz/:teachSubjectTopicQuizID", createTeachTopicQuiz_1.updateTeachSubjectTopicQuiz);
+router.delete("/delete-teach-subject-topic-quiz/:subjectID/:teachSubjectTopicQuizID", createTeachTopicQuiz_1.deleteOneTeachSubjectTopicQuiz);
+exports.default = router;

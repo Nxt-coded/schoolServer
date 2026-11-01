@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const announcementController_1 = require("../controller/announcementController");
+const router = (0, express_1.Router)();
+router.route("/create-announcement/:schoolID").post(announcementController_1.createSchoolAnnouncement);
+router.route("/view-announcement/:schoolID").get(announcementController_1.readSchoolAnnouncement);
+router.route("/create-event/:schoolID").post(announcementController_1.createSchoolEvent);
+router.route("/view-event/:schoolID").get(announcementController_1.readSchoolEvent);
+exports.default = router;

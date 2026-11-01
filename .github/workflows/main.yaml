@@ -1,0 +1,45 @@
+# sudo pm2 stop all
+#             sudo pm2 start ./dist/index.js
+
+name: Push-to-EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to our main server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the files
+        uses: actions/checkout@v2
+
+      - name: Deploy to Server 1
+        uses: easingthemes/ssh-deploy@main
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEYI }}
+          REMOTE_HOST: ${{ secrets.HOST_DNSI }}
+          REMOTE_USER: ${{ secrets.USERNAME }}
+          TARGET: ${{ secrets.TARGET_DIR }}
+
+      - name: Export DATABASE_URL
+        run: echo "MONGO_DB_URL_LOCAL=${{ secrets.DATABASE_URL }}" >> $GITHUB_ENV
+
+      - name: Executing remote ssh commands using ssh key
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST_DNS }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd server
+            sudo pm2 stop all
+            sudo npm run stop
+            sudo tsc
+            sudo npm install
+            sudo pm2 start ./dist/index.js
+
+# sudo iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 8080

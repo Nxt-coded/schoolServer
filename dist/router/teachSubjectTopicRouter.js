@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const createTeachTopicsControlleer_1 = require("../controller/createTeachTopicsControlleer");
+const router = (0, express_1.Router)();
+router.post("/create-teach-subject-topic/:subjectID", createTeachTopicsControlleer_1.createTeachSubjectTopic);
+router.get("/teach-subject-topic/", createTeachTopicsControlleer_1.getAllTeachSubjectTopic);
+router.get("/get-teach-subject-topic/:teachSubjectTopicID", createTeachTopicsControlleer_1.getOneTeachSubjectTopic);
+router.get("/get-one-teach-subject-topic/:teachSubjectTopicID", createTeachTopicsControlleer_1.getOneTeachSubjectTopicNow);
+router.patch("/update-teach-subject-topic/:teachSubjectTopicID", createTeachTopicsControlleer_1.updateTeachSubjectTopic);
+router.delete("/delete-teach-subject-topic/:subjectID/:teachSubjectTopicID", createTeachTopicsControlleer_1.deleteOneTeachSubjectTopic);
+exports.default = router;
