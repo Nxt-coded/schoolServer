@@ -499,17 +499,44 @@ const deleteSchoolSubject = async (req, res) => {
         const { schoolID, subjectID } = req.params;
         const school = await schoolModel_1.default.findById(schoolID);
         if (school && school.schoolName && school.status === "school-admin") {
-            const isSchoolSubject = (school.subjects || []).some((schoolSubject) => String(schoolSubject?._id || schoolSubject) === subjectID);
-            const subject = isSchoolSubject
-                ? await subjectModel_1.default.findById(subjectID)
-                : null;
-            if (!subject) {
+            const schoolClassroomIDs = (school.classRooms || [])
+                .map(getReferenceID)
+                .filter(Boolean);
+            const classrooms = await classroomModel_1.default
+                .find({
+                $or: [
+                    { schoolIDs: schoolID },
+                    { _id: { $in: schoolClassroomIDs } },
+                ],
+            })
+                .select("_id classSubjects");
+            const subject = await subjectModel_1.default.findById(subjectID);
+            const isSchoolSubject = (school.subjects || []).some((schoolSubject) => getReferenceID(schoolSubject) === subjectID);
+            const subjectClassIDs = subject
+                ? [
+                    subject.subjectClassID,
+                    subject.subjectClassIDs,
+                    subject.classID,
+                    getReferenceID(isRecord(subject.classDetails)
+                        ? subject.classDetails._id
+                        : undefined),
+                ]
+                    .map(getReferenceID)
+                    .filter(Boolean)
+                : [];
+            const isClassSubject = Boolean(subject &&
+                classrooms.some((classroom) => {
+                    const classroomID = getReferenceID(classroom._id);
+                    return (subjectClassIDs.includes(classroomID) ||
+                        (classroom.classSubjects || []).some((classSubject) => getReferenceID(classSubject) === subjectID));
+                }));
+            if (!subject || (!isSchoolSubject && !isClassSubject)) {
                 return res.status(404).json({
                     message: "Subject not found in this school",
                     status: 404,
                 });
             }
-            school.subjects = (school.subjects || []).filter((schoolSubject) => String(schoolSubject?._id || schoolSubject) !== subjectID);
+            school.subjects = (school.subjects || []).filter((schoolSubject) => getReferenceID(schoolSubject) !== subjectID);
             const teachers = await staffModel_1.default.find({ schoolIDs: schoolID });
             const teacherUpdates = teachers
                 .filter((teacher) => (teacher.subjectAssigned || []).some((assignment) => String(assignment?.id || assignment?._id) === subjectID))
@@ -519,7 +546,12 @@ const deleteSchoolSubject = async (req, res) => {
             });
             await Promise.all([
                 school.save(),
-                classroomModel_1.default.updateMany({ schoolIDs: schoolID }, { $pull: { classSubjects: subject._id } }),
+                classroomModel_1.default.updateMany({
+                    $or: [
+                        { schoolIDs: schoolID },
+                        { _id: { $in: schoolClassroomIDs } },
+                    ],
+                }, { $pull: { classSubjects: subject._id } }),
                 ...teacherUpdates,
             ]);
             await subjectModel_1.default.findByIdAndDelete(subject._id);
