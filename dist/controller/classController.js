@@ -257,6 +257,33 @@ const viewClassesBySubject = async (req, res) => {
                 },
             ],
         });
+        if (!schoolClasses) {
+            return res.status(404).json({
+                message: "School class not found",
+                status: 404,
+            });
+        }
+        const linkedSubjects = await subjectModel_1.default
+            .find({
+            $or: [
+                { subjectClassID: classID },
+                { subjectClassIDs: classID },
+                { classID },
+                { class: classID },
+                { "classDetails._id": classID },
+            ],
+        })
+            .populate("examination")
+            .populate("midTest")
+            .sort({ createdAt: -1 });
+        const subjectsByID = new Map();
+        for (const subject of [
+            ...(schoolClasses.classSubjects || []),
+            ...linkedSubjects,
+        ]) {
+            subjectsByID.set(subject._id.toString(), subject);
+        }
+        schoolClasses.classSubjects = [...subjectsByID.values()];
         return res.status(200).json({
             message: "finding classes by Name",
             status: 200,

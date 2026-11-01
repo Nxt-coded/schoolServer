@@ -288,7 +288,7 @@ export const viewClassesBySubject = async (
   try {
     const { classID } = req.params;
 
-    const schoolClasses = await classroomModel.findById(classID).populate({
+    const schoolClasses: any = await classroomModel.findById(classID).populate({
       path: "classSubjects",
       options: {
         sort: {
@@ -304,6 +304,36 @@ export const viewClassesBySubject = async (
         },
       ],
     });
+
+    if (!schoolClasses) {
+      return res.status(404).json({
+        message: "School class not found",
+        status: 404,
+      });
+    }
+
+    const linkedSubjects: any[] = await subjectModel
+      .find({
+        $or: [
+          { subjectClassID: classID },
+          { subjectClassIDs: classID },
+          { classID },
+          { class: classID },
+          { "classDetails._id": classID },
+        ],
+      })
+      .populate("examination")
+      .populate("midTest")
+      .sort({ createdAt: -1 });
+
+    const subjectsByID = new Map<string, any>();
+    for (const subject of [
+      ...(schoolClasses.classSubjects || []),
+      ...linkedSubjects,
+    ]) {
+      subjectsByID.set(subject._id.toString(), subject);
+    }
+    schoolClasses.classSubjects = [...subjectsByID.values()];
 
     return res.status(200).json({
       message: "finding classes by Name",
