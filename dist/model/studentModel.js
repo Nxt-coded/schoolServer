@@ -57,7 +57,7 @@ const studentModel = new mongoose_1.Schema({
         default: false,
     },
     records: {
-        type: (Array),
+        type: Array,
     },
     classTermFee: {
         type: Number,

@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseQuizText = exports.virtualSplit = exports.sanitizeUrl = exports.extractUrlsFromText = exports.RE_EXPLANATION = exports.RE_ANSWER = exports.RE_OPTION_STANDARD = exports.RE_OPTION_LONE = exports.RE_QUESTION_START = exports.RE_BRACKET_URL = void 0;
+exports.RE_EXPLANATION = exports.RE_ANSWER = exports.RE_OPTION_STANDARD = exports.RE_OPTION_LONE = exports.RE_QUESTION_START = exports.RE_BRACKET_URL = void 0;
+exports.extractUrlsFromText = extractUrlsFromText;
+exports.sanitizeUrl = sanitizeUrl;
+exports.virtualSplit = virtualSplit;
+exports.parseQuizText = parseQuizText;
 exports.RE_BRACKET_URL = /\[(https?:\/\/[^\]]+)\]/g;
 exports.RE_QUESTION_START = /^\d+[\.\)]\s/;
 exports.RE_OPTION_LONE = /^[A-E][\.\)]?\s*$/;
@@ -11,13 +15,11 @@ function extractUrlsFromText(text) {
     const matches = [...text.matchAll(exports.RE_BRACKET_URL)];
     return matches.map((m) => m[1].trim());
 }
-exports.extractUrlsFromText = extractUrlsFromText;
 function sanitizeUrl(url) {
     if (!url)
         return "";
     return url.replace(/[\[\]]/g, "").trim();
 }
-exports.sanitizeUrl = sanitizeUrl;
 /**
  * Splits raw DOCX text into logical lines where Word/Users might have merged them.
  */
@@ -34,7 +36,6 @@ function virtualSplit(text) {
     s = s.replace(/([a-z,\\.!\?])\s+([A-E]\s+[A-Z])/g, "$1\n$2");
     return s;
 }
-exports.virtualSplit = virtualSplit;
 /**
  * Parses normalized text into an array of QuizQuestion objects.
  */
@@ -114,4 +115,3 @@ function parseQuizText(text) {
     }
     return questions;
 }
-exports.parseQuizText = parseQuizText;
