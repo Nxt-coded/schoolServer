@@ -701,40 +701,77 @@ export const readSubjectMidTest = async (
 
     if (classroom) {
       presentTerm = normalize(classroom?.presentTerm || "");
-      // Get session from classroom's school
-      if (classroom?.school || classroom?.schoolIDs) {
-        const school = await schoolModel.findById(
-          classroom?.school || classroom?.schoolIDs
-        );
+    }
+
+    let school: any = null;
+    const schoolId =
+      classroom?.school ||
+      classroom?.schoolIDs ||
+      subject?.school ||
+      (subject as any)?.schoolIDs;
+
+    if (schoolId) {
+      school = await schoolModel.findById(schoolId);
+    }
+    if (!school && classroom?.teacherID) {
+      const teacher = await staffModel.findById(classroom.teacherID);
+      if (teacher?.schoolIDs || teacher?.school) {
+        school = await schoolModel.findById(teacher.schoolIDs || teacher.school);
+      }
+    }
+    if (!school && subject?.teacherID) {
+      const teacher = await staffModel.findById(subject.teacherID);
+      if (teacher?.schoolIDs || teacher?.school) {
+        school = await schoolModel.findById(teacher.schoolIDs || teacher.school);
+      }
+    }
+    if (!school && (subject?.schoolName || classroom?.schoolName)) {
+      school = await schoolModel.findOne({
+        schoolName: subject?.schoolName || classroom?.schoolName,
+      });
+    }
+    if (!school && classroom?._id) {
+      school = await schoolModel.findOne({
+        $or: [
+          { classRooms: classroom._id },
+          { classRM: classroom._id },
+          { classes: classroom._id },
+        ],
+      });
+    }
+
+    if (school) {
+      if (!presentSession) {
         presentSession = normalize(school?.presentSession || "");
-        if (!presentTerm) {
-          presentTerm = normalize(school?.presentTerm || "");
-        }
+      }
+      if (!presentTerm) {
+        presentTerm = normalize(school?.presentTerm || "");
       }
     }
 
-    // If classroom lookup fails, check the school from subject directly
-    if ((!presentTerm || !presentSession) && subject?.school) {
-      const school = await schoolModel.findById(subject.school);
-      if (!presentTerm) presentTerm = normalize(school?.presentTerm || "");
-      if (!presentSession)
-        presentSession = normalize(school?.presentSession || "");
-    }
-
-    // A student should only receive a mid-test for the school's exact current
-    // term and session. Missing metadata must not make an old test eligible.
     const allMidTests: any[] = lodash.filter(subject?.midTest, {
       status: "midTest",
     });
 
     const matchesCurrentTerm = (m: any) =>
-      !!presentTerm && normalize(m?.term || "") === presentTerm;
+      !presentTerm || normalize(m?.term || "") === presentTerm;
     const matchesCurrentSession = (m: any) =>
-      !!presentSession && normalize(m?.session || "") === presentSession;
+      !presentSession ||
+      !m?.session ||
+      normalize(m?.session || "") === presentSession;
 
-    const isCurrentPeriod = (m: any) =>
-      matchesCurrentTerm(m) && matchesCurrentSession(m);
-    const currentPeriodMidTests = allMidTests.filter(isCurrentPeriod);
+    let currentPeriodMidTests = allMidTests.filter(
+      (m: any) => matchesCurrentTerm(m) && matchesCurrentSession(m)
+    );
+
+    if (currentPeriodMidTests.length === 0 && presentTerm) {
+      currentPeriodMidTests = allMidTests.filter((m: any) => matchesCurrentTerm(m));
+    }
+
+    if (currentPeriodMidTests.length === 0 && allMidTests.length > 0) {
+      currentPeriodMidTests = allMidTests;
+    }
+
     const midTest: any =
       currentPeriodMidTests.find((m: any) => m?.startMidTest === true) ||
       currentPeriodMidTests[0];

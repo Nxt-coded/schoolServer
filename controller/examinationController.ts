@@ -460,39 +460,83 @@ export const readSubjectExamination = async (
 
     if (classroom) {
       presentTerm = normalize(classroom?.presentTerm || "");
-      if (classroom?.school || classroom?.schoolIDs) {
-        const school = await schoolModel.findById(
-          classroom.school || classroom.schoolIDs
-        );
+    }
+
+    let school: any = null;
+    const schoolId =
+      classroom?.school ||
+      classroom?.schoolIDs ||
+      subject?.school ||
+      (subject as any)?.schoolIDs;
+
+    if (schoolId) {
+      school = await schoolModel.findById(schoolId);
+    }
+    if (!school && classroom?.teacherID) {
+      const teacher = await staffModel.findById(classroom.teacherID);
+      if (teacher?.schoolIDs || teacher?.school) {
+        school = await schoolModel.findById(teacher.schoolIDs || teacher.school);
+      }
+    }
+    if (!school && subject?.teacherID) {
+      const teacher = await staffModel.findById(subject.teacherID);
+      if (teacher?.schoolIDs || teacher?.school) {
+        school = await schoolModel.findById(teacher.schoolIDs || teacher.school);
+      }
+    }
+    if (!school && (subject?.schoolName || classroom?.schoolName)) {
+      school = await schoolModel.findOne({
+        schoolName: subject?.schoolName || classroom?.schoolName,
+      });
+    }
+    if (!school && classroom?._id) {
+      school = await schoolModel.findOne({
+        $or: [
+          { classRooms: classroom._id },
+          { classRM: classroom._id },
+          { classes: classroom._id },
+        ],
+      });
+    }
+
+    if (school) {
+      if (!presentSession) {
         presentSession = normalize(school?.presentSession || "");
-        if (!presentTerm) {
-          presentTerm = normalize(school?.presentTerm || "");
-        }
+      }
+      if (!presentTerm) {
+        presentTerm = normalize(school?.presentTerm || "");
       }
     }
 
-    // If classroom lookup fails to provide term or session, check the school specifically
-    if ((!presentTerm || !presentSession) && subject?.school) {
-      const school = await schoolModel.findById(subject.school);
-      if (!presentTerm) presentTerm = normalize(school?.presentTerm || "");
-      if (!presentSession)
-        presentSession = normalize(school?.presentSession || "");
-    }
-
-    // A student should only receive an exam for the school's exact current term
-    // and session. Missing metadata must not make an old exam eligible.
     const allExams: any[] = lodash.filter(subject?.examination, {
       status: "examination",
     });
 
     const matchesCurrentTerm = (e: any) =>
-      !!presentTerm && normalize(e?.term || "") === presentTerm;
+      !presentTerm || normalize(e?.term || "") === presentTerm;
     const matchesCurrentSession = (e: any) =>
-      !!presentSession && normalize(e?.session || "") === presentSession;
+      !presentSession ||
+      !e?.session ||
+      normalize(e?.session || "") === presentSession;
 
-    const exam: any = allExams.find(
+    // First try to match both term and session
+    let currentPeriodExams = allExams.filter(
       (e: any) => matchesCurrentTerm(e) && matchesCurrentSession(e)
     );
+
+    // If no match with session, but term matches, fallback to matching term
+    if (currentPeriodExams.length === 0 && presentTerm) {
+      currentPeriodExams = allExams.filter((e: any) => matchesCurrentTerm(e));
+    }
+
+    // If still no match and allExams has items, fallback to all exams
+    if (currentPeriodExams.length === 0 && allExams.length > 0) {
+      currentPeriodExams = allExams;
+    }
+
+    const exam: any =
+      currentPeriodExams.find((e: any) => e?.startExam === true) ||
+      currentPeriodExams[0];
 
     return res.status(201).json({
       message: "subject exam read successfully",

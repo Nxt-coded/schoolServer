@@ -1,5 +1,5 @@
 const axios = require("axios");
-const URL = "https://schoolserver-wrpc.onrender.comapi";
+const URL = "httphttps://schoolserver-wrpc.onrender.comapi";
 const subjectID = "692d32fe681568bad8602ce4";
 
 async function testAPI() {

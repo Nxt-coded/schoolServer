@@ -657,32 +657,63 @@ const readSubjectMidTest = async (req, res) => {
         }
         if (classroom) {
             presentTerm = normalize(classroom?.presentTerm || "");
-            // Get session from classroom's school
-            if (classroom?.school || classroom?.schoolIDs) {
-                const school = await schoolModel_1.default.findById(classroom?.school || classroom?.schoolIDs);
-                presentSession = normalize(school?.presentSession || "");
-                if (!presentTerm) {
-                    presentTerm = normalize(school?.presentTerm || "");
-                }
+        }
+        let school = null;
+        const schoolId = classroom?.school ||
+            classroom?.schoolIDs ||
+            subject?.school ||
+            subject?.schoolIDs;
+        if (schoolId) {
+            school = await schoolModel_1.default.findById(schoolId);
+        }
+        if (!school && classroom?.teacherID) {
+            const teacher = await staffModel_1.default.findById(classroom.teacherID);
+            if (teacher?.schoolIDs || teacher?.school) {
+                school = await schoolModel_1.default.findById(teacher.schoolIDs || teacher.school);
             }
         }
-        // If classroom lookup fails, check the school from subject directly
-        if ((!presentTerm || !presentSession) && subject?.school) {
-            const school = await schoolModel_1.default.findById(subject.school);
-            if (!presentTerm)
-                presentTerm = normalize(school?.presentTerm || "");
-            if (!presentSession)
-                presentSession = normalize(school?.presentSession || "");
+        if (!school && subject?.teacherID) {
+            const teacher = await staffModel_1.default.findById(subject.teacherID);
+            if (teacher?.schoolIDs || teacher?.school) {
+                school = await schoolModel_1.default.findById(teacher.schoolIDs || teacher.school);
+            }
         }
-        // A student should only receive a mid-test for the school's exact current
-        // term and session. Missing metadata must not make an old test eligible.
+        if (!school && (subject?.schoolName || classroom?.schoolName)) {
+            school = await schoolModel_1.default.findOne({
+                schoolName: subject?.schoolName || classroom?.schoolName,
+            });
+        }
+        if (!school && classroom?._id) {
+            school = await schoolModel_1.default.findOne({
+                $or: [
+                    { classRooms: classroom._id },
+                    { classRM: classroom._id },
+                    { classes: classroom._id },
+                ],
+            });
+        }
+        if (school) {
+            if (!presentSession) {
+                presentSession = normalize(school?.presentSession || "");
+            }
+            if (!presentTerm) {
+                presentTerm = normalize(school?.presentTerm || "");
+            }
+        }
         const allMidTests = lodash_1.default.filter(subject?.midTest, {
             status: "midTest",
         });
-        const matchesCurrentTerm = (m) => !!presentTerm && normalize(m?.term || "") === presentTerm;
-        const matchesCurrentSession = (m) => !!presentSession && normalize(m?.session || "") === presentSession;
-        const isCurrentPeriod = (m) => matchesCurrentTerm(m) && matchesCurrentSession(m);
-        const currentPeriodMidTests = allMidTests.filter(isCurrentPeriod);
+        const matchesCurrentTerm = (m) => !presentTerm || normalize(m?.term || "") === presentTerm;
+        const matchesCurrentSession = (m) => !presentSession ||
+            !m?.session ||
+            normalize(m?.session || "") === presentSession;
+        let currentPeriodMidTests = allMidTests.filter((m) => matchesCurrentTerm(m) && matchesCurrentSession(m));
+        if (currentPeriodMidTests.length === 0 && presentTerm) {
+            currentPeriodMidTests = allMidTests.filter((m) => matchesCurrentTerm(m));
+        }
+        if (currentPeriodMidTests.length === 0 && allMidTests.length > 0) {
+            currentPeriodMidTests = allMidTests;
+        }
         const midTest = currentPeriodMidTests.find((m) => m?.startMidTest === true) ||
             currentPeriodMidTests[0];
         return res.status(201).json({

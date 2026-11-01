@@ -2303,9 +2303,42 @@ export const readSubjectExamination = async (
       classroom = await classroomModel.findOne({ classSubjects: subjectID });
     }
 
+    let school: any = null;
     const schoolId =
-      classroom?.school || classroom?.schoolIDs || subject?.school;
-    const school = await schoolModel.findById(schoolId);
+      classroom?.school ||
+      classroom?.schoolIDs ||
+      subject?.school ||
+      (subject as any)?.schoolIDs;
+
+    if (schoolId) {
+      school = await schoolModel.findById(schoolId);
+    }
+    if (!school && classroom?.teacherID) {
+      const teacher = await staffModel.findById(classroom.teacherID);
+      if (teacher?.schoolIDs || teacher?.school) {
+        school = await schoolModel.findById(teacher.schoolIDs || teacher.school);
+      }
+    }
+    if (!school && subject?.teacherID) {
+      const teacher = await staffModel.findById(subject.teacherID);
+      if (teacher?.schoolIDs || teacher?.school) {
+        school = await schoolModel.findById(teacher.schoolIDs || teacher.school);
+      }
+    }
+    if (!school && (subject?.schoolName || classroom?.schoolName)) {
+      school = await schoolModel.findOne({
+        schoolName: subject?.schoolName || classroom?.schoolName,
+      });
+    }
+    if (!school && classroom?._id) {
+      school = await schoolModel.findOne({
+        $or: [
+          { classRooms: classroom._id },
+          { classRM: classroom._id },
+          { classes: classroom._id },
+        ],
+      });
+    }
 
     const presentTerm = (
       classroom?.presentTerm ||
@@ -2319,24 +2352,26 @@ export const readSubjectExamination = async (
       .trim()
       .toLowerCase();
 
+    const allExams = (subject?.examination || []).filter(
+      (e: any) => e?.status === "examination"
+    );
+
     let exam: any;
     if (presentTerm && presentSession) {
-      exam = subject?.examination?.find((e: any) => {
+      exam = allExams.find((e: any) => {
         return (
-          e.status === "examination" &&
           (e.term || "").trim().toLowerCase() === presentTerm &&
           (e.session || "").trim().toLowerCase() === presentSession
         );
       });
-    } else if (presentTerm) {
-      exam = subject?.examination?.find((e: any) => {
-        return (
-          e.status === "examination" &&
-          (e.term || "").trim().toLowerCase() === presentTerm
-        );
+    }
+    if (!exam && presentTerm) {
+      exam = allExams.find((e: any) => {
+        return (e.term || "").trim().toLowerCase() === presentTerm;
       });
-    } else {
-      exam = undefined;
+    }
+    if (!exam && allExams.length > 0) {
+      exam = allExams[0];
     }
 
     return res.status(201).json({

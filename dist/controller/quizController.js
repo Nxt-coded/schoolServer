@@ -2034,8 +2034,40 @@ const readSubjectExamination = async (req, res) => {
         if (!classroom) {
             classroom = await classroomModel_1.default.findOne({ classSubjects: subjectID });
         }
-        const schoolId = classroom?.school || classroom?.schoolIDs || subject?.school;
-        const school = await schoolModel_1.default.findById(schoolId);
+        let school = null;
+        const schoolId = classroom?.school ||
+            classroom?.schoolIDs ||
+            subject?.school ||
+            subject?.schoolIDs;
+        if (schoolId) {
+            school = await schoolModel_1.default.findById(schoolId);
+        }
+        if (!school && classroom?.teacherID) {
+            const teacher = await staffModel_1.default.findById(classroom.teacherID);
+            if (teacher?.schoolIDs || teacher?.school) {
+                school = await schoolModel_1.default.findById(teacher.schoolIDs || teacher.school);
+            }
+        }
+        if (!school && subject?.teacherID) {
+            const teacher = await staffModel_1.default.findById(subject.teacherID);
+            if (teacher?.schoolIDs || teacher?.school) {
+                school = await schoolModel_1.default.findById(teacher.schoolIDs || teacher.school);
+            }
+        }
+        if (!school && (subject?.schoolName || classroom?.schoolName)) {
+            school = await schoolModel_1.default.findOne({
+                schoolName: subject?.schoolName || classroom?.schoolName,
+            });
+        }
+        if (!school && classroom?._id) {
+            school = await schoolModel_1.default.findOne({
+                $or: [
+                    { classRooms: classroom._id },
+                    { classRM: classroom._id },
+                    { classes: classroom._id },
+                ],
+            });
+        }
         const presentTerm = (classroom?.presentTerm ||
             school?.presentTerm ||
             "")
@@ -2044,22 +2076,21 @@ const readSubjectExamination = async (req, res) => {
         const presentSession = (school?.presentSession || "")
             .trim()
             .toLowerCase();
+        const allExams = (subject?.examination || []).filter((e) => e?.status === "examination");
         let exam;
         if (presentTerm && presentSession) {
-            exam = subject?.examination?.find((e) => {
-                return (e.status === "examination" &&
-                    (e.term || "").trim().toLowerCase() === presentTerm &&
+            exam = allExams.find((e) => {
+                return ((e.term || "").trim().toLowerCase() === presentTerm &&
                     (e.session || "").trim().toLowerCase() === presentSession);
             });
         }
-        else if (presentTerm) {
-            exam = subject?.examination?.find((e) => {
-                return (e.status === "examination" &&
-                    (e.term || "").trim().toLowerCase() === presentTerm);
+        if (!exam && presentTerm) {
+            exam = allExams.find((e) => {
+                return (e.term || "").trim().toLowerCase() === presentTerm;
             });
         }
-        else {
-            exam = undefined;
+        if (!exam && allExams.length > 0) {
+            exam = allExams[0];
         }
         return res.status(201).json({
             message: "subject exam read successfully",

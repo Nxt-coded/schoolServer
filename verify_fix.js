@@ -2,7 +2,7 @@ const axios = require("axios");
 
 async function verify() {
   const subjectID = "69afc8b8c5a72cd302af89ff";
-  const baseUrl = "https://schoolserver-wrpc.onrender.com/api"; // Assuming default port from index.ts if not specified, but let's try to find it.
+  const baseUrl = "httphttps://schoolserver-wrpc.onrender.com/api"; // Assuming default port from index.ts if not specified, but let's try to find it.
 
   // Actually, I can just use mongoose to simulate what the controller does
   const mongoose = require("mongoose");
