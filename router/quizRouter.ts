@@ -8,11 +8,9 @@ import {
   readSubjectQuiz,
   getStudentQuizRecords,
   readTeacherSubjectQuiz,
-  createSubjectExam,
   readSubjectExamination,
   startSubjectExamination,
   createSubjectQuizFromFile,
-  testDocxParsing,
 } from "../controller/quizController";
 import { fileUploads } from "../utils/multer";
 
@@ -38,11 +36,9 @@ router
   .route("/create-subject-quiz/:classID/:subjectID")
   .post(createSubjectQuiz);
 
-router.route("/create-subject-quiz-file/:classID/:subjectID").post(
-  fileUploads,
-  // createSubjectQuizFromFile,
-  testDocxParsing
-);
+router
+  .route("/create-subject-quiz-file/:classID/:subjectID")
+  .post(fileUploads, createSubjectQuizFromFile);
 
 router.route("/view-subject-quiz/:subjectID").get(readSubjectQuiz);
 

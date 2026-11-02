@@ -18,9 +18,9 @@ router.route("/view-subject-exam/:subjectID").get(quizController_1.readSubjectEx
 router
     .route("/create-subject-quiz/:classID/:subjectID")
     .post(quizController_1.createSubjectQuiz);
-router.route("/create-subject-quiz-file/:classID/:subjectID").post(multer_1.fileUploads, 
-// createSubjectQuizFromFile,
-quizController_1.testDocxParsing);
+router
+    .route("/create-subject-quiz-file/:classID/:subjectID")
+    .post(multer_1.fileUploads, quizController_1.createSubjectQuizFromFile);
 router.route("/view-subject-quiz/:subjectID").get(quizController_1.readSubjectQuiz);
 router.route("/view-subject-quiz/:quizID").get(quizController_1.readTeacherSubjectQuiz);
 router.route("/view-quiz/:quizID").get(quizController_1.readQuiz);

@@ -558,13 +558,25 @@ const createSubjectExamination = async (req, res) => {
             let current = { images: [] };
             let options = [];
             for (const line of lines) {
-                if (/^\d+[\.\)]\s/.test(line)) {
+                const numberedQuestion = line.match(/^\d+[\.\)]\s*(.*)$/);
+                const isOption = /^[A-E](?:[.)](?:\s|$)|\s+\S)/.test(line);
+                const isAnswer = /^Answer:/i.test(line);
+                const isExplanation = /^Explanation:/i.test(line);
+                const startsQuestion = Boolean(numberedQuestion) ||
+                    (!isOption &&
+                        !isAnswer &&
+                        !isExplanation &&
+                        (!current.question || current.answer !== undefined));
+                if (startsQuestion) {
                     if (current.question) {
                         current.options = options;
                         questions.push(current);
                     }
+                    const questionText = numberedQuestion
+                        ? numberedQuestion[1].trim()
+                        : line;
                     current = {
-                        question: line.replace(/^\d+[\.\)]\s*/, "").trim(),
+                        question: questionText,
                         images: [],
                     };
                     options = [];
@@ -582,8 +594,11 @@ const createSubjectExamination = async (req, res) => {
                 else if (/^[A-E][\.\)]?\s+\S/.test(line)) {
                     options.push(line.replace(/^[A-E][\.\)]?\s+/, "").trim());
                 }
-                else if (/^Answer:/i.test(line)) {
+                else if (isAnswer) {
                     current.answer = line.replace(/^Answer:\s*/i, "").replace(/<\/?(?:b|i|u)>/gi, "").trim();
+                }
+                else if (isExplanation) {
+                    current.explanation = line.replace(/^Explanation:\s*/i, "").trim();
                 }
                 else if (current.question && options.length === 0) {
                     current.question += " " + line;
@@ -608,7 +623,7 @@ const createSubjectExamination = async (req, res) => {
             console.error("No questions parsed — returning error. First 300 chars of raw: ", (await extractRawTextFromDocx(uploadedPath)).slice(0, 300));
             return res.status(400).json({
                 message: "No questions parsed",
-                hint: "Check file format (questions must be numbered like '1. Question').",
+                hint: "Put each question in its own paragraph, followed by at least two A-E options and an Answer: line.",
             });
         }
         const errors = questions
