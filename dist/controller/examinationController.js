@@ -17,6 +17,7 @@ const node_path_1 = __importDefault(require("node:path"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const streamifier_1 = require("../utils/streamifier");
 const mongoose_1 = require("mongoose");
+const questionBankController_1 = require("./questionBankController");
 const normalize = (val) => (val || "").trim().toLowerCase();
 const createSubjectExam = async (req, res) => {
     try {
@@ -338,6 +339,7 @@ const createSubjectExam = async (req, res) => {
                 status: "examination",
                 startExam: false,
             });
+            await (0, questionBankController_1.saveQuestionsToBank)(String(schoolId), checkForSubject._id, quizes._id, String(req.session?.isSchoolID || findSubjectTeacher?._id || findTeacher?._id || schoolId), "examination", value, theory);
             checkForSubject?.examination.push(new mongoose_1.Types.ObjectId(quizes._id));
             checkForSubject?.performance?.push(new mongoose_1.Types.ObjectId(quizes._id));
             checkForSubject?.save();

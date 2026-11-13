@@ -49,6 +49,7 @@ const schoolModel_1 = __importDefault(require("../model/schoolModel"));
 const mongoose_1 = require("mongoose");
 const csvtojson_1 = __importDefault(require("csvtojson"));
 const lodash_1 = __importDefault(require("lodash"));
+const questionBankController_1 = require("./questionBankController");
 const normalize = (val) => (val || "").trim().toLowerCase();
 // ──────────────────────────────────────────────────────────────
 // Decode XML numeric character references (&#xNNNN; and &#NNNN;)
@@ -592,6 +593,7 @@ const createSubjectMidTest = async (req, res) => {
                 status: "midTest",
                 startExam: false,
             });
+            await (0, questionBankController_1.saveQuestionsToBank)(String(schoolId), checkForSubject._id, quizes._id, String(req.session?.isSchoolID || findSubjectTeacher?._id || findTeacher?._id || schoolId), "midTest", value, theory);
             checkForSubject?.midTest.push(new mongoose_1.Types.ObjectId(quizes._id));
             checkForSubject?.performance?.push(new mongoose_1.Types.ObjectId(quizes._id));
             checkForSubject?.save();

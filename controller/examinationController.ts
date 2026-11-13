@@ -13,6 +13,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { uploadDataUri } from "../utils/streamifier";
 import { Types } from "mongoose";
+import { saveQuestionsToBank } from "./questionBankController";
 
 const normalize = (val: string) => (val || "").trim().toLowerCase();
 
@@ -382,6 +383,16 @@ export const createSubjectExam = async (
         status: "examination",
         startExam: false,
       });
+
+      await saveQuestionsToBank(
+        String(schoolId),
+        checkForSubject._id,
+        quizes._id,
+        String((req as any).session?.isSchoolID || findSubjectTeacher?._id || findTeacher?._id || schoolId),
+        "examination",
+        value,
+        theory
+      );
 
       checkForSubject?.examination.push(new Types.ObjectId(quizes._id));
 

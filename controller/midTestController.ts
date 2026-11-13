@@ -14,6 +14,7 @@ import csv from "csvtojson";
 import mammoth from "mammoth";
 import cheerio from "cheerio";
 import lodash from "lodash";
+import { saveQuestionsToBank } from "./questionBankController";
 
 const normalize = (val: string) => (val || "").trim().toLowerCase();
 
@@ -623,6 +624,16 @@ export const createSubjectMidTest = async (
         status: "midTest",
         startExam: false,
       });
+
+      await saveQuestionsToBank(
+        String(schoolId),
+        checkForSubject._id,
+        quizes._id,
+        String((req as any).session?.isSchoolID || findSubjectTeacher?._id || findTeacher?._id || schoolId),
+        "midTest",
+        value,
+        theory
+      );
 
       checkForSubject?.midTest.push(new Types.ObjectId(quizes._id));
 

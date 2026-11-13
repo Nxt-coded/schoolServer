@@ -290,9 +290,45 @@ const createExamPerformance = async (req, res) => {
         if (!quizData) {
             return res.status(404).json({ message: "Examination not found", status: 404 });
         }
+        const roundID = String(req.body.roundID || quizData.currentRound || 1);
+        if (roundID !== String(quizData.currentRound || 1)) {
+            return res.status(409).json({
+                message: "This examination round is no longer active",
+                status: 409,
+            });
+        }
+        const now = Date.now();
+        if (!quizData.startExam ||
+            (quizData.opensAt && now < new Date(quizData.opensAt).getTime()) ||
+            (quizData.closesAt && now > new Date(quizData.closesAt).getTime())) {
+            return res.status(403).json({
+                message: "This examination is not currently available",
+                status: 403,
+            });
+        }
         const subject = await subjectModel_1.default.findById(subjectID);
         if (!subject) {
             return res.status(404).json({ message: "Subject not found", status: 404 });
+        }
+        const roundFilter = roundID === "1"
+            ? {
+                $or: [
+                    { roundID },
+                    { roundID: { $exists: false } },
+                    { roundID: null },
+                ],
+            }
+            : { roundID };
+        const duplicateAttempt = await performanceModel_1.default.findOne({
+            student: studentID,
+            quizID,
+            ...roundFilter,
+        });
+        if (duplicateAttempt) {
+            return res.status(409).json({
+                message: "You have already submitted this examination round",
+                status: 409,
+            });
         }
         const existingAttempts = await performanceModel_1.default.countDocuments({
             student: studentID,
@@ -312,6 +348,7 @@ const createExamPerformance = async (req, res) => {
             status,
             performanceRating,
             attemptNumber,
+            roundID,
             className: studentInfo?.classAssigned,
             quizID: quizID,
             studentName: `${studentInfo?.studentFirstName || ""} ${studentInfo?.studentLastName || ""}`.trim(),
@@ -479,6 +516,22 @@ const createMidTestPerformance = async (req, res) => {
         if (!quizData) {
             return res.status(404).json({ message: "Mid test not found", status: 404 });
         }
+        const roundID = String(req.body.roundID || quizData.currentRound || 1);
+        if (roundID !== String(quizData.currentRound || 1)) {
+            return res.status(409).json({
+                message: "This mid-test round is no longer active",
+                status: 409,
+            });
+        }
+        const now = Date.now();
+        if (!quizData.startMidTest ||
+            (quizData.opensAt && now < new Date(quizData.opensAt).getTime()) ||
+            (quizData.closesAt && now > new Date(quizData.closesAt).getTime())) {
+            return res.status(403).json({
+                message: "This mid-test is not currently available",
+                status: 403,
+            });
+        }
         const subject = await subjectModel_1.default.findById(subjectID);
         if (!subject) {
             return res.status(404).json({ message: "Subject not found", status: 404 });
@@ -487,18 +540,20 @@ const createMidTestPerformance = async (req, res) => {
             student: studentID,
             quizID,
             subjectID,
+            ...(roundID === "1"
+                ? {
+                    $or: [
+                        { roundID },
+                        { roundID: { $exists: false } },
+                        { roundID: null },
+                    ],
+                }
+                : { roundID }),
         });
         if (existingPerformance) {
-            const performanceID = new mongoose_1.Types.ObjectId(existingPerformance._id);
-            await Promise.all([
-                midTestModel_1.default.updateOne({ _id: quizID }, { $addToSet: { performance: performanceID } }),
-                studentModel_1.default.updateOne({ _id: studentID }, { $addToSet: { performance: performanceID } }),
-                subjectModel_1.default.updateOne({ _id: subjectID }, { $addToSet: { performance: performanceID } }),
-            ]);
-            return res.status(201).json({
-                message: "Mid test performance already recorded",
-                data: existingPerformance,
-                status: 201,
+            return res.status(409).json({
+                message: "You have already submitted this mid-test round",
+                status: 409,
             });
         }
         const existingAttempts = await performanceModel_1.default.countDocuments({
@@ -519,6 +574,7 @@ const createMidTestPerformance = async (req, res) => {
             status,
             performanceRating,
             attemptNumber,
+            roundID,
             className: studentInfo?.classAssigned,
             quizID: quizID,
             studentName: `${studentInfo?.studentFirstName || ""} ${studentInfo?.studentLastName || ""}`.trim(),

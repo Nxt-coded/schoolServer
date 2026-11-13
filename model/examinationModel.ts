@@ -10,6 +10,9 @@ interface iExam {
   totalQuestions: number;
   startExam: boolean;
   randomize: boolean;
+  currentRound: number;
+  opensAt?: Date;
+  closesAt?: Date;
 
   subject: {};
   staff: {};
@@ -46,6 +49,16 @@ const examModel = new Schema<iExamData>(
     randomize: {
       type: Boolean,
       default: false,
+    },
+    currentRound: {
+      type: Number,
+      default: 1,
+    },
+    opensAt: {
+      type: Date,
+    },
+    closesAt: {
+      type: Date,
     },
     totalQuestions: {
       type: Number,

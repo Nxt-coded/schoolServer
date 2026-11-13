@@ -29,6 +29,16 @@ const midTestModel = new mongoose_1.Schema({
         type: Boolean,
         default: false,
     },
+    currentRound: {
+        type: Number,
+        default: 1,
+    },
+    opensAt: {
+        type: Date,
+    },
+    closesAt: {
+        type: Date,
+    },
     totalQuestions: {
         type: Number,
     },

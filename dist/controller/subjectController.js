@@ -107,7 +107,9 @@ const createSchoolSubject = async (req, res) => {
 };
 exports.createSchoolSubject = createSchoolSubject;
 const createBulkClassSubjects = async (req, res) => {
-    console.log("POST /api/create-bulk-subject hit", { schoolID: req.params.schoolID });
+    console.log("POST /api/create-bulk-subject hit", {
+        schoolID: req.params.schoolID,
+    });
     try {
         const { schoolID } = req.params;
         if (!req.file) {
@@ -293,7 +295,9 @@ const updateSchoolSubjectTeacher = async (req, res) => {
                 status: 404,
             });
         }
-        const schoolStaffIDs = (school.staff || []).map(getReferenceID).filter(Boolean);
+        const schoolStaffIDs = (school.staff || [])
+            .map(getReferenceID)
+            .filter(Boolean);
         const schoolClassroomIDs = (school.classRooms || [])
             .map(getReferenceID)
             .filter(Boolean);
@@ -301,10 +305,7 @@ const updateSchoolSubjectTeacher = async (req, res) => {
             $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolStaffIDs } }],
         };
         const schoolClassroomFilter = {
-            $or: [
-                { schoolIDs: schoolID },
-                { _id: { $in: schoolClassroomIDs } },
-            ],
+            $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolClassroomIDs } }],
         };
         const subject = await subjectModel_1.default.findById(subjectID);
         if (!subject) {
@@ -353,7 +354,10 @@ const updateSchoolSubjectTeacher = async (req, res) => {
             });
         }
         const nextTeacher = subjectTeacherID
-            ? await staffModel_1.default.findOne({ _id: subjectTeacherID, ...schoolStaffFilter })
+            ? await staffModel_1.default.findOne({
+                _id: subjectTeacherID,
+                ...schoolStaffFilter,
+            })
             : subjectTeacherName
                 ? await staffModel_1.default.findOne({
                     staffName: subjectTeacherName,
@@ -368,7 +372,10 @@ const updateSchoolSubjectTeacher = async (req, res) => {
         }
         const currentTeacherID = subject.teacherID?.toString();
         const currentTeacher = currentTeacherID
-            ? await staffModel_1.default.findOne({ _id: currentTeacherID, ...schoolStaffFilter })
+            ? await staffModel_1.default.findOne({
+                _id: currentTeacherID,
+                ...schoolStaffFilter,
+            })
             : subject.subjectTeacherName
                 ? await staffModel_1.default.findOne({
                     staffName: subject.subjectTeacherName,
@@ -383,7 +390,8 @@ const updateSchoolSubjectTeacher = async (req, res) => {
             classMeant: classroom.className,
             classID: classroom._id.toString(),
         });
-        if (currentTeacher && String(currentTeacher._id) !== String(nextTeacher._id)) {
+        if (currentTeacher &&
+            String(currentTeacher._id) !== String(nextTeacher._id)) {
             currentTeacher.subjectAssigned = (currentTeacher.subjectAssigned || []).filter((assignment) => getSubjectAssignmentID(assignment) !== subjectAssignmentID);
             await currentTeacher.save();
         }
@@ -438,11 +446,9 @@ const viewSchoolSubjects = async (req, res) => {
         const schoolClassroomIDs = (school.classRooms || [])
             .map(getReferenceID)
             .filter(Boolean);
-        const classrooms = await classroomModel_1.default.find({
-            $or: [
-                { schoolIDs: schoolID },
-                { _id: { $in: schoolClassroomIDs } },
-            ],
+        const classrooms = await classroomModel_1.default
+            .find({
+            $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolClassroomIDs } }],
         })
             .select("_id className classSubjects");
         const classroomIDs = classrooms.map(getReferenceID).filter(Boolean);
@@ -457,7 +463,10 @@ const viewSchoolSubjects = async (req, res) => {
                 { classID: { $in: classroomIDs } },
             ],
         });
-        const classroomNames = new Map(classrooms.map((classroom) => [getReferenceID(classroom), classroom.className]));
+        const classroomNames = new Map(classrooms.map((classroom) => [
+            getReferenceID(classroom),
+            classroom.className,
+        ]));
         const subjectsByID = new Map();
         const addSubject = (subject) => {
             const subjectID = getReferenceID(subject?._id);
@@ -504,10 +513,7 @@ const deleteSchoolSubject = async (req, res) => {
                 .filter(Boolean);
             const classrooms = await classroomModel_1.default
                 .find({
-                $or: [
-                    { schoolIDs: schoolID },
-                    { _id: { $in: schoolClassroomIDs } },
-                ],
+                $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolClassroomIDs } }],
             })
                 .select("_id classSubjects");
             const subject = await subjectModel_1.default.findById(subjectID);

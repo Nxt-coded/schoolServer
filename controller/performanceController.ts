@@ -367,12 +367,51 @@ export const createExamPerformance = async (
     if (!quizData) {
       return res.status(404).json({ message: "Examination not found", status: 404 });
     }
+    const roundID = String(req.body.roundID || quizData.currentRound || 1);
+    if (roundID !== String(quizData.currentRound || 1)) {
+      return res.status(409).json({
+        message: "This examination round is no longer active",
+        status: 409,
+      });
+    }
+    const now = Date.now();
+    if (
+      !quizData.startExam ||
+      (quizData.opensAt && now < new Date(quizData.opensAt).getTime()) ||
+      (quizData.closesAt && now > new Date(quizData.closesAt).getTime())
+    ) {
+      return res.status(403).json({
+        message: "This examination is not currently available",
+        status: 403,
+      });
+    }
 
     const subject = await subjectModel.findById(subjectID);
     if (!subject) {
       return res.status(404).json({ message: "Subject not found", status: 404 });
     }
 
+    const roundFilter =
+      roundID === "1"
+        ? {
+            $or: [
+              { roundID },
+              { roundID: { $exists: false } },
+              { roundID: null },
+            ],
+          }
+        : { roundID };
+    const duplicateAttempt = await performanceModel.findOne({
+      student: studentID,
+      quizID,
+      ...roundFilter,
+    });
+    if (duplicateAttempt) {
+      return res.status(409).json({
+        message: "You have already submitted this examination round",
+        status: 409,
+      });
+    }
     const existingAttempts = await performanceModel.countDocuments({
       student: studentID,
       quizID,
@@ -393,6 +432,7 @@ export const createExamPerformance = async (
       status,
       performanceRating,
       attemptNumber,
+      roundID,
       className: studentInfo?.classAssigned,
       quizID: quizID,
       studentName: `${studentInfo?.studentFirstName || ""} ${studentInfo?.studentLastName || ""}`.trim(),
@@ -597,6 +637,24 @@ export const createMidTestPerformance = async (
     if (!quizData) {
       return res.status(404).json({ message: "Mid test not found", status: 404 });
     }
+    const roundID = String(req.body.roundID || quizData.currentRound || 1);
+    if (roundID !== String(quizData.currentRound || 1)) {
+      return res.status(409).json({
+        message: "This mid-test round is no longer active",
+        status: 409,
+      });
+    }
+    const now = Date.now();
+    if (
+      !quizData.startMidTest ||
+      (quizData.opensAt && now < new Date(quizData.opensAt).getTime()) ||
+      (quizData.closesAt && now > new Date(quizData.closesAt).getTime())
+    ) {
+      return res.status(403).json({
+        message: "This mid-test is not currently available",
+        status: 403,
+      });
+    }
 
     const subject = await subjectModel.findById(subjectID);
     if (!subject) {
@@ -607,27 +665,20 @@ export const createMidTestPerformance = async (
       student: studentID,
       quizID,
       subjectID,
+      ...(roundID === "1"
+        ? {
+            $or: [
+              { roundID },
+              { roundID: { $exists: false } },
+              { roundID: null },
+            ],
+          }
+        : { roundID }),
     });
     if (existingPerformance) {
-      const performanceID = new Types.ObjectId(existingPerformance._id);
-      await Promise.all([
-        midTestModel.updateOne(
-          { _id: quizID },
-          { $addToSet: { performance: performanceID } }
-        ),
-        studentModel.updateOne(
-          { _id: studentID },
-          { $addToSet: { performance: performanceID } }
-        ),
-        subjectModel.updateOne(
-          { _id: subjectID },
-          { $addToSet: { performance: performanceID } }
-        ),
-      ]);
-      return res.status(201).json({
-        message: "Mid test performance already recorded",
-        data: existingPerformance,
-        status: 201,
+      return res.status(409).json({
+        message: "You have already submitted this mid-test round",
+        status: 409,
       });
     }
 
@@ -651,6 +702,7 @@ export const createMidTestPerformance = async (
       status,
       performanceRating,
       attemptNumber,
+      roundID,
       className: studentInfo?.classAssigned,
       quizID: quizID,
       studentName: `${studentInfo?.studentFirstName || ""} ${studentInfo?.studentLastName || ""}`.trim(),

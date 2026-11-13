@@ -34,6 +34,7 @@ import teachSubject from "./router/teachSubjectRouter";
 import teachSubjectTopic from "./router/teachSubjectTopicRouter";
 import docxRepair from "./router/docxRepairRouter";
 import teachSubjectQuiz from "./router/teachTopicQuiz";
+import questionBank from "./router/questionBankRouter";
 
 import { HTTP } from "./utils/enums";
 import { mainError } from "./error/mianError";
@@ -48,6 +49,7 @@ export const mainApp = (app: Application) => {
     app.use("/api", payment); // Moved up
     app.use("/api", school);
     app.use("/api", exam);
+    app.use("/api", questionBank);
     app.use("/api", scheme);
     app.use("/api", session);
     app.use("/api", staff);

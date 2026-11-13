@@ -8,9 +8,6 @@ require("dotenv/config");
 const express_1 = __importDefault(require("express"));
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
-const dns_1 = __importDefault(require("dns"));
-// Override DNS servers to resolve MongoDB Atlas SRV lookup issues
-dns_1.default.setServers(["8.8.8.8", "1.1.1.1"]);
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const express_session_1 = __importDefault(require("express-session"));
 const cors_1 = __importDefault(require("cors"));
@@ -23,46 +20,23 @@ const mongoDbUrl = process.env.MONGO_DB_URL_ONLINE || process.env.MONGO_DB_URL_L
 if (!mongoDbUrl) {
     throw new Error("MONGO_DB_URL_ONLINE or MONGO_DB_URL_LOCAL must be configured");
 }
-const store = new MongoDBStore({
-    uri: mongoDbUrl,
-    collection: "sessions",
-});
 const app = (0, express_1.default)();
-const portServer = process.env.PORT;
-const port = parseInt(portServer);
-// cors headers starts
-app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET, PUT, PATCH, POST, DELETE");
-    res.header("Access-Control-Allow-Headers", "Content-Type");
-    next();
-});
-// [`${process.env.APP_URL_DEPLOY}`, "https://just-next.onrender.com"]
-// cors headers ends
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000,
-//   limit: 10,
-//   message: "Limit exceeded, please try again in 15mins time!!!",
-//   // standardHeaders: "draft-7",
-//   // legacyHeaders: false, process.env.APP_URL_DEPLOY
-// });
-// app.use(
-//   cors({
-//     origin: [
-//       process.env.APP_URL_DEPLOY as string,
-//       "https://justnext-dev.vercel.app",
-//       "https://justnext-dev.netlify.app",
-//     ],
-//   })
-// );
+const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 3000;
+const allowedOrigins = [
+    process.env.APP_URL_DEPLOY,
+    "https://justnext-dev.vercel.app",
+    "https://justnext-dev.netlify.app",
+    "https://just-next.web.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+].filter((origin) => Boolean(origin));
 app.use((0, cors_1.default)({
-    origin: [
-        process.env.APP_URL_DEPLOY,
-        "https://justnext-dev.vercel.app",
-        "https://justnext-dev.netlify.app",
-        "https://just-next.web.app",
-    ],
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "PUT", "PATCH", "POST", "DELETE"],
+    allowedHeaders: ["Content-Type"],
 }));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: false }));
@@ -70,27 +44,39 @@ app.use((0, helmet_1.default)());
 app.use((0, morgan_1.default)("dev"));
 // app.use(limiter)
 app.use((0, cookie_parser_1.default)(process.env.SESSION_SECRET));
-app.use((0, express_session_1.default)({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        maxAge: 1000 * 60 * 60 * 24, // 24 hours
-        // sameSite: "lax",
-        // secure: false,
-        httpOnly: true,
-        // domain: process.env.APP_URL_DEPLOY,
-    },
-    store,
-}));
-(0, mainApp_1.mainApp)(app);
 //13.51.1.65/.well-known/pki-validation/F5F57A81136A32F3A3EB73DF8DB4BC06.txt
+const createSessionStore = () => new Promise((resolve, reject) => {
+    let store;
+    store = new MongoDBStore({
+        uri: mongoDbUrl,
+        collection: "sessions",
+    }, (error) => {
+        if (error) {
+            reject(error);
+            return;
+        }
+        resolve(store);
+    });
+    store.on("error", (error) => {
+        console.error("Session store error:", error);
+    });
+});
 const startServer = async () => {
     try {
-        // Connect to database first
         await (0, dbConfig_1.dbConfig)();
-        // Start server only after successful database connection
-        const server = app.listen(process.env.PORT || port, () => {
+        const store = await createSessionStore();
+        app.use((0, express_session_1.default)({
+            secret: process.env.SESSION_SECRET,
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                maxAge: 1000 * 60 * 60 * 24,
+                httpOnly: true,
+            },
+            store,
+        }));
+        (0, mainApp_1.mainApp)(app);
+        const server = app.listen(port, () => {
             console.clear();
             console.log(`Server running on port ${port}🔥❤️🔥`);
         });

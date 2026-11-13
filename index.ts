@@ -4,10 +4,6 @@ import express, { Application, NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import fs from "fs";
-import dns from "dns";
-
-// Override DNS servers to resolve MongoDB Atlas SRV lookup issues
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 import cookieParser from "cookie-parser";
 import session from "express-session";
@@ -27,53 +23,26 @@ if (!mongoDbUrl) {
   throw new Error("MONGO_DB_URL_ONLINE or MONGO_DB_URL_LOCAL must be configured");
 }
 
-const store = new MongoDBStore({
-  uri: mongoDbUrl,
-  collection: "sessions",
-});
-
 const app: Application = express();
-const portServer = process.env.PORT!;
+const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 3000;
 
-const port = parseInt(portServer);
+const allowedOrigins = [
+  process.env.APP_URL_DEPLOY,
+  "https://justnext-dev.vercel.app",
+  "https://justnext-dev.netlify.app",
+  "https://just-next.web.app",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+].filter((origin): origin is string => Boolean(origin));
 
-// cors headers starts
-
-app.use((req: Request, res: Response, next: NextFunction) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, PUT, PATCH, POST, DELETE");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-  next();
-});
-// [`${process.env.APP_URL_DEPLOY}`, "https://just-next.onrender.com"]
-// cors headers ends
-
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000,
-//   limit: 10,
-//   message: "Limit exceeded, please try again in 15mins time!!!",
-//   // standardHeaders: "draft-7",
-//   // legacyHeaders: false, process.env.APP_URL_DEPLOY
-
-// });
-// app.use(
-//   cors({
-//     origin: [
-//       process.env.APP_URL_DEPLOY as string,
-//       "https://justnext-dev.vercel.app",
-//       "https://justnext-dev.netlify.app",
-//     ],
-//   })
-// );
 app.use(
   cors({
-    origin: [
-      process.env.APP_URL_DEPLOY as string,
-      "https://justnext-dev.vercel.app",
-      "https://justnext-dev.netlify.app",
-      "https://just-next.web.app",
-    ],
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "PUT", "PATCH", "POST", "DELETE"],
+    allowedHeaders: ["Content-Type"],
   }),
 );
 app.use(express.json());
@@ -84,35 +53,51 @@ app.use(morgan("dev"));
 
 // app.use(limiter)
 app.use(cookieParser(process.env.SESSION_SECRET as string));
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET as string,
-    resave: false,
-    saveUninitialized: false,
-
-    cookie: {
-      maxAge: 1000 * 60 * 60 * 24, // 24 hours
-      // sameSite: "lax",
-      // secure: false,
-      httpOnly: true,
-      // domain: process.env.APP_URL_DEPLOY,
-    },
-
-    store,
-  }),
-);
-
-mainApp(app);
 
 //13.51.1.65/.well-known/pki-validation/F5F57A81136A32F3A3EB73DF8DB4BC06.txt
 
+const createSessionStore = (): Promise<InstanceType<typeof MongoDBStore>> =>
+  new Promise((resolve, reject) => {
+    let store: InstanceType<typeof MongoDBStore>;
+    store = new MongoDBStore(
+      {
+        uri: mongoDbUrl,
+        collection: "sessions",
+      },
+      (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(store);
+      },
+    );
+    store.on("error", (error: Error) => {
+      console.error("Session store error:", error);
+    });
+  });
+
 const startServer = async () => {
   try {
-    // Connect to database first
     await dbConfig();
+    const store = await createSessionStore();
 
-    // Start server only after successful database connection
-    const server = app.listen(process.env.PORT || port, () => {
+    app.use(
+      session({
+        secret: process.env.SESSION_SECRET as string,
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+          maxAge: 1000 * 60 * 60 * 24,
+          httpOnly: true,
+        },
+        store,
+      }),
+    );
+
+    mainApp(app);
+
+    const server = app.listen(port, () => {
       console.clear();
       console.log(`Server running on port ${port}🔥❤️🔥`);
     });

@@ -38,6 +38,7 @@ const teachSubjectRouter_1 = __importDefault(require("./router/teachSubjectRoute
 const teachSubjectTopicRouter_1 = __importDefault(require("./router/teachSubjectTopicRouter"));
 const docxRepairRouter_1 = __importDefault(require("./router/docxRepairRouter"));
 const teachTopicQuiz_1 = __importDefault(require("./router/teachTopicQuiz"));
+const questionBankRouter_1 = __importDefault(require("./router/questionBankRouter"));
 const enums_1 = require("./utils/enums");
 const mianError_1 = require("./error/mianError");
 const handleError_1 = require("./error/handleError");
@@ -50,6 +51,7 @@ const mainApp = (app) => {
         app.use("/api", paymentRouter_1.default); // Moved up
         app.use("/api", schoolRouter_1.default);
         app.use("/api", exanimationRouter_1.default);
+        app.use("/api", questionBankRouter_1.default);
         app.use("/api", schemeOfWorkRouter_1.default);
         app.use("/api", sessionRouter_1.default);
         app.use("/api", staffRouter_1.default);

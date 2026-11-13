@@ -34,7 +34,7 @@ const getSubjectAssignmentID = (value: unknown): string => {
 
 export const createSchoolSubject = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { schoolID } = req.params;
@@ -87,7 +87,7 @@ export const createSchoolSubject = async (
     const isDuplicate = linkedSubjects.some(
       (subject) =>
         subject.subjectTitle?.trim().toLowerCase() ===
-        subjectTitle.toLowerCase()
+        subjectTitle.toLowerCase(),
     );
 
     if (isDuplicate) {
@@ -126,9 +126,11 @@ export const createSchoolSubject = async (
 
 export const createBulkClassSubjects = async (
   req: Request | any,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
-  console.log("POST /api/create-bulk-subject hit", { schoolID: req.params.schoolID });
+  console.log("POST /api/create-bulk-subject hit", {
+    schoolID: req.params.schoolID,
+  });
   try {
     const { schoolID } = req.params;
 
@@ -150,12 +152,12 @@ export const createBulkClassSubjects = async (
 
     const classrooms = await classroomModel.find({ schoolIDs: schoolID });
     const classroomCache = new Map(
-      classrooms.map((c) => [c.className?.trim(), c])
+      classrooms.map((c) => [c.className?.trim(), c]),
     );
 
     const data = await csv().fromFile(req.file.path);
     const existingSubjectKeys = new Set(
-      school.subjects.map((s: any) => `${s.subjectTitle}-${s.designated}`)
+      school.subjects.map((s: any) => `${s.subjectTitle}-${s.designated}`),
     );
 
     let createdCount = 0;
@@ -167,7 +169,8 @@ export const createBulkClassSubjects = async (
     for (let i of data) {
       // Clean and normalize input
       const subjectTitle = i?.subjectTitle?.trim();
-      let subjectTeacherName = (i?.subjectTeacherName || i?.subjectTeacher)?.trim() || "";
+      let subjectTeacherName =
+        (i?.subjectTeacherName || i?.subjectTeacher)?.trim() || "";
       let designated = i?.designated?.trim() || "";
 
       // Skip completely empty rows
@@ -194,7 +197,7 @@ export const createBulkClassSubjects = async (
 
       if (!targetClassroom) {
         errors.push(
-          `Classroom not found for '${designated || "N/A"}' (row Subject: ${subjectTitle})`
+          `Classroom not found for '${designated || "N/A"}' (row Subject: ${subjectTitle})`,
         );
         continue;
       }
@@ -246,13 +249,13 @@ export const createBulkClassSubjects = async (
                 },
               },
             },
-            { new: true }
+            { new: true },
           );
         }
 
         const subId = new Types.ObjectId(subjects._id);
         newSubjectIds.push(subId);
-        
+
         const classIdStr = targetClassroom._id.toString();
         if (!classSubjectUpdates.has(classIdStr)) {
           classSubjectUpdates.set(classIdStr, []);
@@ -262,7 +265,9 @@ export const createBulkClassSubjects = async (
         existingSubjectKeys.add(key);
         createdCount++;
       } catch (err: any) {
-        errors.push(`Error creating subject '${subjectTitle}': ${err?.message || err}`);
+        errors.push(
+          `Error creating subject '${subjectTitle}': ${err?.message || err}`,
+        );
       }
     }
 
@@ -300,10 +305,9 @@ export const createBulkClassSubjects = async (
   }
 };
 
-
 export const updateSchoolSubjectTitle = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { schoolID, subjectID } = req.params;
@@ -317,7 +321,7 @@ export const updateSchoolSubjectTitle = async (
         {
           subjectTitle,
         },
-        { new: true }
+        { new: true },
       );
 
       return res.status(201).json({
@@ -341,7 +345,7 @@ export const updateSchoolSubjectTitle = async (
 
 export const updateSchoolSubjectTeacher = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { schoolID, subjectID } = req.params;
@@ -354,7 +358,9 @@ export const updateSchoolSubjectTeacher = async (
       });
     }
 
-    const schoolStaffIDs = (school.staff || []).map(getReferenceID).filter(Boolean);
+    const schoolStaffIDs = (school.staff || [])
+      .map(getReferenceID)
+      .filter(Boolean);
     const schoolClassroomIDs = (school.classRooms || [])
       .map(getReferenceID)
       .filter(Boolean);
@@ -362,10 +368,7 @@ export const updateSchoolSubjectTeacher = async (
       $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolStaffIDs } }],
     };
     const schoolClassroomFilter = {
-      $or: [
-        { schoolIDs: schoolID },
-        { _id: { $in: schoolClassroomIDs } },
-      ],
+      $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolClassroomIDs } }],
     };
     const subject = await subjectModel.findById(subjectID);
     if (!subject) {
@@ -380,7 +383,7 @@ export const updateSchoolSubjectTeacher = async (
       subject.subjectClassIDs ||
       subject.classID ||
       getReferenceID(
-        isRecord(subject.classDetails) ? subject.classDetails._id : undefined
+        isRecord(subject.classDetails) ? subject.classDetails._id : undefined,
       );
     const classroom =
       (classID ? await classroomModel.findById(classID) : null) ||
@@ -393,8 +396,8 @@ export const updateSchoolSubjectTeacher = async (
     const classroomID = getReferenceID(classroom?._id);
     const classroomBelongsToSchool = Boolean(
       classroom &&
-        (schoolClassroomIDs.includes(classroomID) ||
-          String(classroom.schoolIDs) === schoolID)
+      (schoolClassroomIDs.includes(classroomID) ||
+        String(classroom.schoolIDs) === schoolID),
     );
 
     if (!classroom || !classroomBelongsToSchool) {
@@ -405,14 +408,14 @@ export const updateSchoolSubjectTeacher = async (
     }
 
     const isSchoolSubject = (school.subjects || []).some(
-      (schoolSubject) => getReferenceID(schoolSubject) === subjectID
+      (schoolSubject) => getReferenceID(schoolSubject) === subjectID,
     );
     const subjectClassIDs = [
       subject.subjectClassID,
       subject.subjectClassIDs,
       subject.classID,
       getReferenceID(
-        isRecord(subject.classDetails) ? subject.classDetails._id : undefined
+        isRecord(subject.classDetails) ? subject.classDetails._id : undefined,
       ),
     ]
       .map(getReferenceID)
@@ -421,7 +424,7 @@ export const updateSchoolSubjectTeacher = async (
       classroomBelongsToSchool &&
       (subjectClassIDs.includes(classroomID) ||
         (classroom.classSubjects || []).some(
-          (classSubject) => getReferenceID(classSubject) === subjectID
+          (classSubject) => getReferenceID(classSubject) === subjectID,
         ));
 
     if (!isSchoolSubject && !isClassSubject) {
@@ -432,7 +435,10 @@ export const updateSchoolSubjectTeacher = async (
     }
 
     const nextTeacher = subjectTeacherID
-      ? await staffModel.findOne({ _id: subjectTeacherID, ...schoolStaffFilter })
+      ? await staffModel.findOne({
+          _id: subjectTeacherID,
+          ...schoolStaffFilter,
+        })
       : subjectTeacherName
         ? await staffModel.findOne({
             staffName: subjectTeacherName,
@@ -449,7 +455,10 @@ export const updateSchoolSubjectTeacher = async (
 
     const currentTeacherID = subject.teacherID?.toString();
     const currentTeacher = currentTeacherID
-      ? await staffModel.findOne({ _id: currentTeacherID, ...schoolStaffFilter })
+      ? await staffModel.findOne({
+          _id: currentTeacherID,
+          ...schoolStaffFilter,
+        })
       : subject.subjectTeacherName
         ? await staffModel.findOne({
             staffName: subject.subjectTeacherName,
@@ -459,7 +468,8 @@ export const updateSchoolSubjectTeacher = async (
 
     const subjectAssignmentID = subject._id.toString();
     const nextAssignments = (nextTeacher.subjectAssigned || []).filter(
-      (assignment) => getSubjectAssignmentID(assignment) !== subjectAssignmentID
+      (assignment) =>
+        getSubjectAssignmentID(assignment) !== subjectAssignmentID,
     );
     nextAssignments.push({
       title: subject.subjectTitle,
@@ -468,9 +478,15 @@ export const updateSchoolSubjectTeacher = async (
       classID: classroom._id.toString(),
     });
 
-    if (currentTeacher && String(currentTeacher._id) !== String(nextTeacher._id)) {
-      currentTeacher.subjectAssigned = (currentTeacher.subjectAssigned || []).filter(
-        (assignment) => getSubjectAssignmentID(assignment) !== subjectAssignmentID
+    if (
+      currentTeacher &&
+      String(currentTeacher._id) !== String(nextTeacher._id)
+    ) {
+      currentTeacher.subjectAssigned = (
+        currentTeacher.subjectAssigned || []
+      ).filter(
+        (assignment) =>
+          getSubjectAssignmentID(assignment) !== subjectAssignmentID,
       );
       await currentTeacher.save();
     }
@@ -485,7 +501,7 @@ export const updateSchoolSubjectTeacher = async (
         classID: classroom._id.toString(),
         designated: classroom.className,
       },
-      { new: true }
+      { new: true },
     );
 
     nextTeacher.subjectAssigned = nextAssignments;
@@ -513,7 +529,7 @@ export const updateSchoolSubjectTeacher = async (
 
 export const viewSchoolSubjects = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { schoolID } = req.params;
@@ -537,16 +553,16 @@ export const viewSchoolSubjects = async (
     const schoolClassroomIDs = (school.classRooms || [])
       .map(getReferenceID)
       .filter(Boolean);
-    const classrooms = await classroomModel.find({
-        $or: [
-          { schoolIDs: schoolID },
-          { _id: { $in: schoolClassroomIDs } },
-        ],
+    const classrooms = await classroomModel
+      .find({
+        $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolClassroomIDs } }],
       })
       .select("_id className classSubjects");
     const classroomIDs = classrooms.map(getReferenceID).filter(Boolean);
     const classroomSubjectIDs = classrooms
-      .flatMap((classroom) => (classroom.classSubjects || []).map(getReferenceID))
+      .flatMap((classroom) =>
+        (classroom.classSubjects || []).map(getReferenceID),
+      )
       .filter(Boolean);
     const classroomSubjects = await subjectModel.find({
       $or: [
@@ -557,7 +573,10 @@ export const viewSchoolSubjects = async (
       ],
     });
     const classroomNames = new Map(
-      classrooms.map((classroom) => [getReferenceID(classroom), classroom.className])
+      classrooms.map((classroom) => [
+        getReferenceID(classroom),
+        classroom.className,
+      ]),
     );
     const subjectsByID = new Map<string, any>();
     const addSubject = (subject: any) => {
@@ -569,7 +588,7 @@ export const viewSchoolSubjects = async (
         subject.subjectClassIDs,
         subject.classID,
         getReferenceID(
-          isRecord(subject.classDetails) ? subject.classDetails._id : undefined
+          isRecord(subject.classDetails) ? subject.classDetails._id : undefined,
         ),
       ]
         .map(getReferenceID)
@@ -580,7 +599,7 @@ export const viewSchoolSubjects = async (
         subjectID,
         subjectClassID
           ? { ...subjectData, designated: classroomNames.get(subjectClassID) }
-          : subjectData
+          : subjectData,
       );
     };
 
@@ -589,7 +608,7 @@ export const viewSchoolSubjects = async (
     const subjects = [...subjectsByID.values()].sort(
       (left, right) =>
         new Date(right.createdAt || 0).getTime() -
-        new Date(left.createdAt || 0).getTime()
+        new Date(left.createdAt || 0).getTime(),
     );
 
     return res.status(200).json({
@@ -607,7 +626,7 @@ export const viewSchoolSubjects = async (
 
 export const deleteSchoolSubject = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { schoolID, subjectID } = req.params;
@@ -619,15 +638,12 @@ export const deleteSchoolSubject = async (
         .filter(Boolean);
       const classrooms = await classroomModel
         .find({
-          $or: [
-            { schoolIDs: schoolID },
-            { _id: { $in: schoolClassroomIDs } },
-          ],
+          $or: [{ schoolIDs: schoolID }, { _id: { $in: schoolClassroomIDs } }],
         })
         .select("_id classSubjects");
       const subject = await subjectModel.findById(subjectID);
       const isSchoolSubject = (school.subjects || []).some(
-        (schoolSubject) => getReferenceID(schoolSubject) === subjectID
+        (schoolSubject) => getReferenceID(schoolSubject) === subjectID,
       );
       const subjectClassIDs = subject
         ? [
@@ -637,7 +653,7 @@ export const deleteSchoolSubject = async (
             getReferenceID(
               isRecord(subject.classDetails)
                 ? subject.classDetails._id
-                : undefined
+                : undefined,
             ),
           ]
             .map(getReferenceID)
@@ -645,15 +661,15 @@ export const deleteSchoolSubject = async (
         : [];
       const isClassSubject = Boolean(
         subject &&
-          classrooms.some((classroom) => {
-            const classroomID = getReferenceID(classroom._id);
-            return (
-              subjectClassIDs.includes(classroomID) ||
-              (classroom.classSubjects || []).some(
-                (classSubject) => getReferenceID(classSubject) === subjectID
-              )
-            );
-          })
+        classrooms.some((classroom) => {
+          const classroomID = getReferenceID(classroom._id);
+          return (
+            subjectClassIDs.includes(classroomID) ||
+            (classroom.classSubjects || []).some(
+              (classSubject) => getReferenceID(classSubject) === subjectID,
+            )
+          );
+        }),
       );
 
       if (!subject || (!isSchoolSubject && !isClassSubject)) {
@@ -663,7 +679,7 @@ export const deleteSchoolSubject = async (
         });
       }
       school.subjects = (school.subjects || []).filter(
-        (schoolSubject) => getReferenceID(schoolSubject) !== subjectID
+        (schoolSubject) => getReferenceID(schoolSubject) !== subjectID,
       );
 
       const teachers = await staffModel.find({ schoolIDs: schoolID });
@@ -671,13 +687,13 @@ export const deleteSchoolSubject = async (
         .filter((teacher) =>
           (teacher.subjectAssigned || []).some(
             (assignment: any) =>
-              String(assignment?.id || assignment?._id) === subjectID
-          )
+              String(assignment?.id || assignment?._id) === subjectID,
+          ),
         )
         .map((teacher) => {
           teacher.subjectAssigned = (teacher.subjectAssigned || []).filter(
             (assignment: any) =>
-              String(assignment?.id || assignment?._id) !== subjectID
+              String(assignment?.id || assignment?._id) !== subjectID,
           );
           return teacher.save();
         });
@@ -691,7 +707,7 @@ export const deleteSchoolSubject = async (
               { _id: { $in: schoolClassroomIDs } },
             ],
           },
-          { $pull: { classSubjects: subject._id } }
+          { $pull: { classSubjects: subject._id } },
         ),
         ...teacherUpdates,
       ]);
@@ -719,7 +735,7 @@ export const deleteSchoolSubject = async (
 
 export const viewSubjectDetail = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { subjectID } = req.params;
@@ -741,7 +757,7 @@ export const viewSubjectDetail = async (
 
 export const removeSubjectFromTeacher = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response> => {
   try {
     const { schoolID, teacherID, subjectID } = req.params;
@@ -783,7 +799,7 @@ export const removeSubjectFromTeacher = async (
 
     // Verify the subject is actually assigned to this teacher
     const hasSubject = teacher.subjectAssigned?.some(
-      (el: any) => el.id.toString() === subjectID
+      (el: any) => el.id.toString() === subjectID,
     );
 
     if (!hasSubject) {
@@ -795,7 +811,7 @@ export const removeSubjectFromTeacher = async (
 
     // Remove subject from teacher's assignments
     const updatedAssignments = (teacher.subjectAssigned || []).filter(
-      (el: any) => el.id.toString() !== subjectID
+      (el: any) => el.id.toString() !== subjectID,
     );
 
     // Update both teacher and subject atomically
@@ -805,7 +821,7 @@ export const removeSubjectFromTeacher = async (
         {
           subjectAssigned: updatedAssignments,
         },
-        { new: true }
+        { new: true },
       ),
       subjectModel.findByIdAndUpdate(
         subjectID,
@@ -813,7 +829,7 @@ export const removeSubjectFromTeacher = async (
           subjectTeacherName: "",
           teacherID: null, // use null instead of empty string for ID field
         },
-        { new: true }
+        { new: true },
       ),
     ]);
 

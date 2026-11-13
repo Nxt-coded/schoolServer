@@ -56,6 +56,10 @@ const performanceModel = new mongoose_1.Schema({
         type: Number,
         default: 1,
     },
+    roundID: {
+        type: String,
+        default: "1",
+    },
     student: {
         type: mongoose_1.Types.ObjectId,
         ref: "students",

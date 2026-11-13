@@ -10,6 +10,9 @@ interface iExam {
   totalQuestions: number;
   startMidTest: boolean;
   randomize: boolean;
+  currentRound: number;
+  opensAt?: Date;
+  closesAt?: Date;
 
   subject: {};
   staff: {};
@@ -47,6 +50,16 @@ const midTestModel = new Schema<iExamData>(
       type: Boolean,
       default: false,
     },
+    currentRound: {
+      type: Number,
+      default: 1,
+    },
+    opensAt: {
+      type: Date,
+    },
+    closesAt: {
+      type: Date,
+    },
     totalQuestions: {
       type: Number,
     },
@@ -68,7 +81,7 @@ const midTestModel = new Schema<iExamData>(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default model<iExamData>("midTests", midTestModel);
