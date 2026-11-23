@@ -50,15 +50,44 @@ const createSchoolSubject = async (req, res) => {
                 status: 404,
             });
         }
-        const classroom = classID
-            ? await classroomModel_1.default.findOne({ _id: classID, schoolIDs: schoolID })
-            : await classroomModel_1.default.findOne({
-                schoolIDs: schoolID,
-                className: designated,
+        const linkedClassroomIDs = (school.classRooms || [])
+            .map((classroom) => getReferenceID(classroom))
+            .filter(Boolean);
+        let classroom;
+        if (typeof classID === "string" && classID.trim()) {
+            const selectedClassID = classID.trim();
+            if (!mongoose_1.Types.ObjectId.isValid(selectedClassID)) {
+                return res.status(400).json({
+                    message: "Invalid classroom selection",
+                    status: 400,
+                });
+            }
+            classroom = await classroomModel_1.default.findOne({
+                _id: selectedClassID,
+                $or: [
+                    { schoolIDs: schoolID },
+                    { _id: { $in: linkedClassroomIDs } },
+                ],
             });
+        }
+        else {
+            const designatedName = typeof designated === "string" ? designated.trim() : "";
+            const linkedClassrooms = await classroomModel_1.default.find({
+                _id: { $in: linkedClassroomIDs },
+            });
+            const normalizedName = designatedName.toLowerCase();
+            classroom =
+                linkedClassrooms.find((linkedClassroom) => linkedClassroom.className?.trim().toLowerCase() === normalizedName) ||
+                    (designatedName
+                        ? await classroomModel_1.default.findOne({
+                            schoolIDs: schoolID,
+                            className: designatedName,
+                        })
+                        : null);
+        }
         if (!classroom) {
             return res.status(404).json({
-                message: "Error finding school classroom",
+                message: "Selected class could not be found for this school",
                 status: 404,
             });
         }
@@ -99,9 +128,10 @@ const createSchoolSubject = async (req, res) => {
         });
     }
     catch (error) {
-        return res.status(404).json({
-            message: "Error creating school session",
-            status: 404,
+        console.error("Error creating school subject:", error);
+        return res.status(500).json({
+            message: "Error creating school subject",
+            status: 500,
         });
     }
 };
