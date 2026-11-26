@@ -671,114 +671,153 @@ export const updateSchoolClassTeacher = async (
         : "";
 
     const school = await schoolModel.findById(schoolID);
-    const classroom = await classroomModel.findOne({
-      _id: classID,
-      schoolIDs: schoolID,
-    });
-
-    if (school && school.schoolName && school.status === "school-admin") {
-      if (!classroom) {
-        return res.status(404).json({
-          message: "unable to find classroom",
-          status: 404,
-        });
-      }
-
-      const currentTeacher = classroom.teacherID
-        ? await staffModel.findOne({
-            _id: classroom.teacherID,
-            schoolIDs: schoolID,
-          })
-        : classroom.classTeacherName
-          ? await staffModel.findOne({
-              staffName: classroom.classTeacherName,
-              schoolIDs: schoolID,
-            })
-          : null;
-
-      const nextTeacher = classTeacherName
-        ? await staffModel.findOne({
-            staffName: classTeacherName,
-            schoolIDs: schoolID,
-          })
-        : null;
-
-      if (classTeacherName && !nextTeacher) {
-        return res.status(404).json({
-          message: "unable to find school Teacher",
-          status: 404,
-        });
-      }
-
-      if (currentTeacher) {
-        const remainingClasses = (currentTeacher.classesAssigned || []).filter(
-          (assignedClass: any) =>
-            String(assignedClass?.classID) !== String(classID)
-        );
-        const currentTeacherSet: Record<string, unknown> = {
-          classesAssigned: remainingClasses,
-        };
-        const currentTeacherUpdate: Record<string, unknown> = {
-          $set: currentTeacherSet,
-        };
-
-        if (String(currentTeacher.presentClassID) === String(classID)) {
-          if (remainingClasses.length > 0) {
-            currentTeacherSet.presentClassID = remainingClasses[0].classID;
-          } else {
-            currentTeacherUpdate.$unset = { presentClassID: 1 };
-          }
-        }
-
-        await staffModel.findByIdAndUpdate(currentTeacher._id, currentTeacherUpdate);
-      }
-
-      const updatedClassroom = await classroomModel.findByIdAndUpdate(
-        classID,
-        {
-          classTeacherName: nextTeacher ? classTeacherName : "",
-          teacherID: nextTeacher ? String(nextTeacher._id) : "",
-        },
-        { new: true }
-      );
-
-      if (nextTeacher) {
-        const assignedClasses = (nextTeacher.classesAssigned || []).filter(
-          (assignedClass: any) =>
-            String(assignedClass?.classID) !== String(classID)
-        );
-        assignedClasses.push({
-          className: classroom.className,
-          classID: String(classID),
-        });
-
-        await staffModel.findByIdAndUpdate(
-          nextTeacher._id,
-          {
-            classesAssigned: assignedClasses,
-            presentClassID: String(classID),
-          },
-          { new: true }
-        );
-      }
-
-      return res.status(201).json({
-        message: nextTeacher
-          ? "class teacher updated successfully"
-          : "class teacher removed successfully",
-        data: updatedClassroom,
-        status: 201,
-      });
-    } else {
+    if (!school || !school.schoolName || school.status !== "school-admin") {
       return res.status(404).json({
-        message: "unable to read school",
+        message: "Unable to find school",
         status: 404,
       });
     }
+
+    const schoolClassroomIDs = [
+      ...(school.classRooms || []),
+      ...((school as any).classRM || []),
+      ...((school as any).classes || []),
+    ]
+      .map((c: any) =>
+        typeof c === "object" && c?._id ? String(c._id) : String(c)
+      )
+      .filter(Boolean);
+
+    let classroom = await classroomModel.findOne({
+      _id: classID,
+      $or: [
+        { schoolIDs: schoolID },
+        { school: schoolID },
+        ...(schoolClassroomIDs.includes(String(classID))
+          ? [{ _id: classID }]
+          : []),
+      ],
+    });
+    if (!classroom) {
+      const candidate = await classroomModel.findById(classID);
+      if (candidate) {
+        const belongsViaTeacher = await staffModel.exists({
+          schoolIDs: schoolID,
+          $or: [
+            { "classesAssigned.classID": String(classID) },
+            ...(candidate.teacherID ? [{ _id: candidate.teacherID }] : []),
+          ],
+        });
+        if (belongsViaTeacher) classroom = candidate;
+      }
+    }
+    if (!classroom) {
+      return res.status(404).json({
+        message: "Unable to find classroom for this school",
+        status: 404,
+      });
+    }
+
+    const nextTeacher = classTeacherName
+      ? await staffModel.findOne({
+          staffName: classTeacherName,
+          schoolIDs: schoolID,
+        })
+      : null;
+
+    if (classTeacherName && !nextTeacher) {
+      return res.status(404).json({
+        message: "Unable to find teacher in this school",
+        status: 404,
+      });
+    }
+
+    const previousTeacherConditions: Record<string, unknown>[] = [
+      { "classesAssigned.classID": String(classID) },
+    ];
+    if (classroom.teacherID) {
+      previousTeacherConditions.push({ _id: classroom.teacherID });
+    }
+
+    let previousTeachers = await staffModel.find({
+      schoolIDs: schoolID,
+      $or: previousTeacherConditions,
+    });
+    if (previousTeachers.length === 0 && classroom.classTeacherName) {
+      const previousTeacher = await staffModel.findOne({
+        staffName: classroom.classTeacherName,
+        schoolIDs: schoolID,
+      });
+      if (previousTeacher) previousTeachers = [previousTeacher];
+    }
+
+    for (const previousTeacher of previousTeachers) {
+      const remainingClasses = (previousTeacher.classesAssigned || []).filter(
+        (assignedClass: any) =>
+          String(assignedClass?.classID) !== String(classID)
+      );
+      const teacherUpdate: Record<string, unknown> = {
+        classesAssigned: remainingClasses,
+      };
+
+      if (String(previousTeacher.presentClassID) === String(classID)) {
+        if (remainingClasses.length > 0) {
+          teacherUpdate.presentClassID = remainingClasses[0].classID || "";
+        } else {
+          await staffModel.findByIdAndUpdate(previousTeacher._id, {
+            $set: { classesAssigned: remainingClasses },
+            $unset: { presentClassID: 1 },
+          });
+          continue;
+        }
+      }
+
+      await staffModel.findByIdAndUpdate(previousTeacher._id, {
+        $set: teacherUpdate,
+      });
+    }
+
+    const updatedClassroom = await classroomModel.findByIdAndUpdate(
+      classID,
+      {
+        classTeacherName: nextTeacher ? classTeacherName : "",
+        teacherID: nextTeacher ? String(nextTeacher._id) : "",
+      },
+      { new: true }
+    );
+
+    if (nextTeacher) {
+      const assignedClasses = (nextTeacher.classesAssigned || []).filter(
+        (assignedClass: any) =>
+          String(assignedClass?.classID) !== String(classID)
+      );
+      assignedClasses.push({
+        className: classroom.className,
+        classID: String(classID),
+      });
+
+      await staffModel.findByIdAndUpdate(
+        nextTeacher._id,
+        {
+          classesAssigned: assignedClasses,
+          presentClassID: String(classID),
+        },
+        { new: true }
+      );
+    }
+
+    return res.status(201).json({
+      message: nextTeacher
+        ? "Class teacher updated successfully"
+        : "Class teacher removed successfully",
+      data: updatedClassroom,
+      status: 201,
+    });
   } catch (error) {
-    return res.status(404).json({
-      message: "Error creating school session",
-      status: 404,
+    console.error("Error updating class teacher:", error);
+    return res.status(500).json({
+      message: "Unable to update class teacher",
+      status: 500,
     });
   }
 };
